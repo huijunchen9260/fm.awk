@@ -6,28 +6,27 @@ BEGIN {
     # Start of the script #
     #######################
 
-    RS = "\f"
+    RS = "\n"
     dir = ENVIRON["PWD"] "/"
     gen_list(dir)
-    list = Dirs Files DotDirs DotFiles "Back"
-    delim = "\n"
+    list =  "../" Dirs Files DotDirs DotFiles
+    delim = "\f"
     num = 1
     tmsg = dir
     bmsg = ""
 
     while (response = menu_TUI(list, delim, num, tmsg, bmsg)) {
 
-	if (response == "Back") {
+	if (response == "../") {
 	    gsub(/[^\/]*\/?$/, "", dir)
 	    dir = ( dir == "" ? "/" : dir )
 	}
 	else {
 	    dir = dir response
-	    cmd = "printf '%s\n' " dir "/*"
 	}
 	gen_list(dir)
-	list = Dirs Files DotDirs DotFiles "Back"
-	delim = "\n"
+	list =  "../" Dirs Files DotDirs DotFiles
+	delim = "\f"
 	num = 1
 	tmsg = dir
 	bmsg = ""
@@ -45,20 +44,27 @@ END {
 }
 
 function gen_list(dir) {
+
     Dirs = ""; Files = ""; DotDirs = ""; DotFiles = "";
-    cmd = "for d in " dir "/*; do [ -d \"$d\" ] && printf '%s\n' \"$d\"/; done"
-    cmd | getline Dirs
+
+    cmd = "printf '%s\f' " dir "/.* " dir "/*"
+    cmd | getline content
     close(cmd)
-    cmd = "for f in " dir "/*; do [ -f \"$f\" ] && printf '%s\n' \"$f\"; done"
-    cmd | getline Files
-    close(cmd)
-    cmd = "for d in " dir "/.*; do [ -d \"$d\" ] && printf '%s\n' \"$d\"/; done"
-    cmd | getline DotDirs
-    close(cmd)
-    cmd = "for f in " dir "/.*; do [ -f \"$f\" ] && printf '%s\n' \"$f\"; done"
-    cmd | getline DotFiles
-    close(cmd)
+    gsub(dir "/", "", content)
+    num = split(content, arr, "\f")
+    delete arr[num]
+    for (key in arr) {
+        if (getline < arr[key] > 0) { # can read -> is file
+	    if (arr[key] ~ /^\..*$/) DotFiles = DotFiles "\f" arr[key]
+	    else Files = Files "\f" arr[key]
+        }
+	else { # cannot read -> is dir
+	    if (arr[key] ~ /^[.][^.].*$/) DotDirs = DotDirs "\f" arr[key] "/"
+	    else if (arr[key] ~ /^[^.].*$/) Dirs = Dirs "\f" arr[key] "/"
+	}
+    }
     return Dirs Files DotDirs DotFiles
+
 }
 
 function clear_screen() { # clear screen and move cursor to 0, 0
@@ -87,7 +93,6 @@ function menu_TUI_setup(list, delim) {
 
     # generate display content for each page (pagearr)
     for (entry in disp) {
-	gsub(dir "/", "", disp[entry])
 	if ((+entry) % (dispnum) == 1) { # if first item in each page
 	    pagearr[++page] = entry ". " disp[entry]
 	}
@@ -123,14 +128,16 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
     while (answer !~ /^[[:digit:]]+$/) {
 	clear_screen()
 	CUP(1, 1);
-	printf "[\033\1331mn\033\133m]ext, "\
+	printf "page: "\
+	       "[\033\1331mn\033\133m]ext, "\
 	       "[\033\1331mp\033\133m]rev, "\
 	       "[\033\1331mr\033\133m]eload, "\
 	       "[\033\1331mt\033\133m]op, "\
 	       "[\033\1331mb\033\133m]ottom, "\
+	       "[\033\1331m[0-9]G\033\133m]o; "\
+	       "entry: "\
 	       "[\033\1331mf\033\133m]irst, "\
 	       "[\033\1331ml\033\133m]ast, "\
-	       "[\033\1331m[0-9]G\033\133m]o to page, "\
 	       "[\033\1331m/\033\133m]search, " \
 	       "[\033\1331mq\033\133m]uit"
 	CUP(3, 1); print tmsg
@@ -142,18 +149,13 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	       "total page num is \033\133;1m%d\033\133m: ", \
 	       entry, cur, page
 
-	RS = "\n"
 	cmd = "saved=$(stty -g); stty raw; var=$(dd bs=1 count=1 2>/dev/null); stty \"$saved\"; printf '%s' \"$var\""
 	cmd | getline answer
 	close(cmd)
-	RS = "\f"
 
 	if ( answer ~ /[[:digit:]]/ || answer == "/" ) {
-	    RS = "\n" # stop getline by enter
 	    getline ans < "-"
-	    answer = answer ans
-	    ans = ""
-	    RS = "\f"
+	    answer = answer ans; ans = ""
 
 	    if (answer ~ /\/[^[:cntrl:]*]/) {
 		slist = search(list, delim, substr(answer, 2))
@@ -189,14 +191,3 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
     return disp[answer]
 }
-
-function notify(msg, str) {
-    system("stty -cread icanon echo 1>/dev/null 2>&1")
-    print msg
-    RS = "\n" # stop getline by enter
-    getline str < "-"
-    RS = "\f"
-    return str
-    system("stty sane")
-}
-
