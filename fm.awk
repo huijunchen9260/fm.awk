@@ -32,7 +32,7 @@ BEGIN {
 	}
 	else {
 	    restore()
-	    system(OPENER " " dir response)
+	    system(OPENER " \"" dir response "\"")
 	    init()
 	}
 	list = gen_list(dir)
