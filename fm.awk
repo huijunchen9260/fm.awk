@@ -66,7 +66,7 @@ function init() {
 
 function gen_list(dir) {
 
-    cmd = "for f in " dir "* " dir ".* ; do "\
+    cmd = "for f in \"" dir "\"* \"" dir "\".* ; do "\
 	      "test -L \"$f\" && test -f \"$f\" && printf '\f\033\1331;36m%s\033\133m' \"$f\" && continue; "\
 	      "test -L \"$f\" && test -d \"$f\" && printf '\f\033\1331;36m%s\033\133m' \"$f\"/ && continue; "\
 	      "test -x \"$f\" && test -f \"$f\" && printf '\f\033\1331;32m%s\033\133m' \"$f\" && continue; "\
