@@ -8,9 +8,12 @@ BEGIN {
 
     OPENER = ( ENVIRON["OSTYPE"] ~ /darwin.*/ ? "open" : "xdg-open" )
 
-    #######################
-    # Start of the script #
-    #######################
+    main()
+}
+
+END { restore(); print dir > "/dev/stdout" }
+
+function main() {
 
     init()
     RS = "\n"
@@ -44,36 +47,31 @@ BEGIN {
 
 }
 
-END {
-    restore()
-}
-
 function restore() {
-    printf "\033\1332J" # clear screen
-    printf "\033\133?7h" # line wrap
-    printf "\033\1338" # restore cursor
-    printf "\033\133?1049l" # back from alternate buffer
-    ENVIRON["LANG"] = LANG; # restore LANG
+    printf "\033\1332J\033\133H" > "/dev/stderr" # clear screen
+    printf "\033\133?7h" > "/dev/stderr" # line wrap
+    printf "\033\1338" > "/dev/stderr" # restore cursor
+    printf "\033\133?1049l" > "/dev/stderr" # back from alternate buffer
+    # ENVIRON["LANG"] = LANG; # restore LANG
 }
 
 function init() {
-    printf "\033\1332J" # clear screen
-    printf "\033\133?1049h" # alternate buffer
-    printf "\033\1337" # save cursor
-    printf "\033\133?7l" # line wrap
-    LANG = ENVIRON["LANG"]; # save LANG
-    ENVIRON["LANG"] = C; # simplest locale setting
+    printf "\033\1332J\033\133H" > "/dev/stderr" # clear screen
+    printf "\033\133?1049h" > "/dev/stderr" # alternate buffer
+    printf "\033\1337" > "/dev/stderr" # save cursor
+    printf "\033\133?7l" > "/dev/stderr" # line wrap
+    # LANG = ENVIRON["LANG"]; # save LANG
+    # ENVIRON["LANG"] = C; # simplest locale setting
 }
 
 function gen_list(dir) {
 
     cmd = "for f in " dir "* " dir ".* ; do "\
-	      "test \"$f\" \= \".\" || test \"$f\" \= \"..\" && continue; "\
 	      "test -L \"$f\" && test -f \"$f\" && printf '\f\033\1331;36m%s\033\133m' \"$f\" && continue; "\
 	      "test -L \"$f\" && test -d \"$f\" && printf '\f\033\1331;36m%s\033\133m' \"$f\"/ && continue; "\
 	      "test -x \"$f\" && test -f \"$f\" && printf '\f\033\1331;32m%s\033\133m' \"$f\" && continue; "\
 	      "test -f \"$f\" && printf '\f%s' \"$f\" && continue; "\
-	      "test -d \"$f\" && printf '\f\033\1331;34m%s\033\133m' \"$f\"\/ ; "\
+	      "test -d \"$f\" && printf '\f\033\1331;34m%s\033\133m' \"$f\"/ ; "\
 	  "done"
     cmd | getline list
     close(cmd)
@@ -99,7 +97,7 @@ function gen_list(dir) {
 ##################
 
 function CUP(lines, cols) {
-    printf("\033\133%s;%sH", lines, cols)
+    printf("\033\133%s;%sH", lines, cols) > "/dev/stderr"
 }
 
 function menu_TUI_setup(list, delim) {
@@ -145,25 +143,25 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
     cursor = 1
     menu_TUI_setup(list, delim)
     while (answer !~ /^[[:digit:]]+$/) {
-	printf "\033\1332J\033\133H" # clear screen and move cursor to 0, 0
+	printf "\033\1332J\033\133H" > "/dev/stderr" # clear screen and move cursor to 0, 0
 	CUP(1, 1);
 	hud = "page: [n]ext, [p]rev, [r]eload, [t]op, [b]ottom, [num+G]o; entry: [h/k/j/l]-[←/↑/↓/→], [/]search, [q]uit"
 	gsub("[[]", "[\033\1331m", hud); gsub("[]]", "\033\133m]", hud)
-	printf hud
+	printf hud > "/dev/stderr"
 
 	CUP(2, 1)
 	hline = sprintf("%" dim[2] "s", "")
 	gsub(/ /, "━", hline)
-	printf hline
-	CUP(top, 1); print pagearr[curpage]
+	printf hline > "/dev/stderr"
+	CUP(top, 1); print pagearr[curpage] > "/dev/stderr"
 	cursor = ( cursor+dispnum*(curpage-1) > Narr ? Narr - dispnum*(curpage-1) : cursor )
 	Ncursor = cursor+dispnum*(curpage-1)
-	CUP(top + cursor*num - num, 1); printf "%s\033\1330;7m%s\033\133m", Ncursor ". ", disp[Ncursor]
-	CUP(3, 1); print tmsg disp[Ncursor]
-	CUP(dim[1] - 2, 1); print bmsg
+	CUP(top + cursor*num - num, 1); printf "%s\033\1330;7m%s\033\133m", Ncursor ". ", disp[Ncursor] > "/dev/stderr"
+	CUP(3, 1); print tmsg disp[Ncursor] > "/dev/stderr"
+	CUP(dim[1] - 2, 1); print bmsg > "/dev/stderr"
 	CUP(dim[1], 1)
 
-	printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: ", Narr, curpage, page
+	printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: ", Narr, curpage, page > "/dev/stderr"
 
 	cmd = "saved=$(stty -g); stty raw; dd bs=1 count=1 2>/dev/null; stty \"$saved\""
 	cmd | getline answer
