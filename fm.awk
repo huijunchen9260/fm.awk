@@ -1,44 +1,54 @@
-#!/usr/bin/mawk -f
+#!/usr/bin/awk -f
 
 BEGIN {
+
+    ###################
+    #  Configuration  #
+    ###################
+
+    OPENER = ( ENVIRON["OSTYPE"] ~ /darwin.*/ ? "open" : "xdg-open" )
 
     #######################
     # Start of the script #
     #######################
 
-    LANG = ENVIRON["LANG"];		# save LANG
-    ENVIRON["LANG"] = C;		# simplest locale setting
+    init()
     RS = "\n"
     dir = ENVIRON["PWD"] "/"
     list = gen_list(dir)
-    list = "../" list
     delim = "\f"
     num = 1
     tmsg = dir
-    bmsg = "HJC"
+    bmsg = ""
 
     while (response = menu_TUI(list, delim, num, tmsg, bmsg)) {
-
+	gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", response)
 	if (response == "../") {
 	    gsub(/[^\/]*\/?$/, "", dir)
 	    dir = ( dir == "" ? "/" : dir )
 	}
-	else {
+	else if (response ~ /.*\/$/) {
 	    dir = dir response
-	    # dir = ( dir == "/" ? dir response "/" : dir response )
+	}
+	else {
+	    restore()
+	    system(OPENER " " dir response)
+	    init()
 	}
 	list = gen_list(dir)
-	list = "../" list
 	delim = "\f"
 	num = 1
 	tmsg = dir
-	bmsg = "HJC"
-
+	bmsg = ""
     }
 
 }
 
 END {
+    restore()
+}
+
+function restore() {
     printf "\033\1332J" # clear screen
     printf "\033\133?7h" # line wrap
     printf "\033\1338" # restore cursor
@@ -46,24 +56,40 @@ END {
     ENVIRON["LANG"] = LANG; # restore LANG
 }
 
+function init() {
+    printf "\033\1332J" # clear screen
+    printf "\033\133?1049h" # alternate buffer
+    printf "\033\1337" # save cursor
+    printf "\033\133?7l" # line wrap
+    LANG = ENVIRON["LANG"]; # save LANG
+    ENVIRON["LANG"] = C; # simplest locale setting
+}
+
 function gen_list(dir) {
 
-    Dirs = ""; Files = ""; DotDirs = ""; DotFiles = "";
-    cmd = "printf '\f%s' " dir "*/"
-    cmd | getline Dirs
+    cmd = "for f in " dir "* " dir ".* ; do "\
+	      "test \"$f\" \= \".\" || test \"$f\" \= \"..\" && continue; "\
+	      "test -L \"$f\" && test -f \"$f\" && printf '\f\033\1331;36m%s\033\133m' \"$f\" && continue; "\
+	      "test -L \"$f\" && test -d \"$f\" && printf '\f\033\1331;36m%s\033\133m' \"$f\"/ && continue; "\
+	      "test -x \"$f\" && test -f \"$f\" && printf '\f\033\1331;32m%s\033\133m' \"$f\" && continue; "\
+	      "test -f \"$f\" && printf '\f%s' \"$f\" && continue; "\
+	      "test -d \"$f\" && printf '\f\033\1331;34m%s\033\133m' \"$f\"\/ ; "\
+	  "done"
+    cmd | getline list
     close(cmd)
-    cmd = "printf '\f%s' " dir ".*/"
-    cmd | getline DotDirs
-    close(cmd)
-    cmd = "for f in " dir "*; do test -f \"$f\" && printf '\f%s' \"$f\"; done"
-    cmd | getline Files
-    close(cmd)
-    cmd = "for f in " dir ".*; do test -f \"$f\" && printf '\f%s' \"$f\"; done"
-    cmd | getline DotFiles
-    close(cmd)
-    list = Dirs Files DotDirs DotFiles
-    if (dir != "/") gsub(dir, "", list)
-    else gsub("\f\/", "\f", list)
+    if (dir != "/") {
+	gsub(dir, "", list)
+    }
+    else {
+	Narr = split(list, listarr, "\f")
+	delete listarr[1]
+	list = ""
+	for (entry = 2; entry in listarr; entry++) {
+	    sub(/\//, "", listarr[entry])
+	    list = list "\f" listarr[entry]
+	}
+    }
+    list = substr(list, 2)
     return list
 
 }
@@ -72,20 +98,12 @@ function gen_list(dir) {
 #  Start of TUI  #
 ##################
 
-function clear_screen() { # clear screen and move cursor to 0, 0
-    printf "\033\1332J\033\133H"
-}
-
 function CUP(lines, cols) {
     printf("\033\133%s;%sH", lines, cols)
 }
 
 function menu_TUI_setup(list, delim) {
-    answer = ""
-    page = 0
-    split("", pagearr, ":") # delete saved array
-    clear_screen()
-    printf "\033\133?7l" # line unwrap
+    answer = ""; page = 0; split("", pagearr, ":") # delete saved array
     cmd = "stty size"
     cmd | getline d
     close(cmd)
@@ -95,9 +113,10 @@ function menu_TUI_setup(list, delim) {
     dispnum = (end - top) / num
 
     Narr = split(list, disp, delim)
+    dispnum = (dispnum <= Narr ? dispnum : Narr)
 
     # generate display content for each page (pagearr)
-    for (entry = 1; entry <= Narr; entry++) {
+    for (entry = 1; entry in disp; entry++) {
 	if ((+entry) % (+dispnum) == 1) { # if first item in each page
 	    pagearr[++page] = entry ". " disp[entry]
 	}
@@ -112,7 +131,7 @@ function search(list, delim, str) {
     find = ""; str = tolower(str); regex = ".*" str ".*";
     Narr = split(list, sdisp, delim)
 
-    for (entry = 1; entry <= Narr; entry++) {
+    for (entry = 1; entry in sdisp; entry++) {
 	match(tolower(sdisp[entry]), regex)
 	if (RSTART) find = find delim sdisp[entry]
     }
@@ -123,13 +142,12 @@ function search(list, delim, str) {
 
 function menu_TUI(list, delim, num, tmsg, bmsg) {
 
-    printf "\033\133?1049h" # alternate buffer
-    printf "\033\1337" # save cursor
+    cursor = 1
     menu_TUI_setup(list, delim)
     while (answer !~ /^[[:digit:]]+$/) {
-	clear_screen()
+	printf "\033\1332J\033\133H" # clear screen and move cursor to 0, 0
 	CUP(1, 1);
-	hud = "page: [n]ext, [p]rev, [r]eload, [t]op, [b]ottom, [num+G]o; entry: [f]irst, [l]ast, [/]search, [q]uit"
+	hud = "page: [n]ext, [p]rev, [r]eload, [t]op, [b]ottom, [num+G]o; entry: [h/k/j/l]-[←/↑/↓/→], [/]search, [q]uit"
 	gsub("[[]", "[\033\1331m", hud); gsub("[]]", "\033\133m]", hud)
 	printf hud
 
@@ -137,12 +155,15 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	hline = sprintf("%" dim[2] "s", "")
 	gsub(/ /, "━", hline)
 	printf hline
-	CUP(3, 1); print tmsg
 	CUP(top, 1); print pagearr[curpage]
+	cursor = ( cursor+dispnum*(curpage-1) > Narr ? Narr - dispnum*(curpage-1) : cursor )
+	Ncursor = cursor+dispnum*(curpage-1)
+	CUP(top + cursor*num - num, 1); printf "%s\033\1330;7m%s\033\133m", Ncursor ". ", disp[Ncursor]
+	CUP(3, 1); print tmsg disp[Ncursor]
 	CUP(dim[1] - 2, 1); print bmsg
 	CUP(dim[1], 1)
 
-	printf "Choose [\033\133;1m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: ", Narr, curpage, page
+	printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: ", Narr, curpage, page
 
 	cmd = "saved=$(stty -g); stty raw; dd bs=1 count=1 2>/dev/null; stty \"$saved\""
 	cmd | getline answer
@@ -171,27 +192,24 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	}
 
 	if ( answer == "r" ||
-	   ( answer ~ /[[:digit:]]/ && (+answer > +Narr || +answer < +1) ) ) {
+	   ( answer ~ /[[:digit:]]/ && (+answer > +Narr || +answer < 1) ) ) {
 	    menu_TUI_setup(list, delim)
 	    curpage = (+curpage > +page ? page : curpage)
 	}
-	if ( answer == "\r" && +Narr == 1 ) answer = 1
+	if ( answer == "\r" || answer == "l" ) answer = Ncursor
 	if ( answer == "q" ) exit
-	if ( answer == "f" ) answer = 1
-	if ( answer == "l" ) answer = Narr
-	if ( (answer == "n" || answer == "j") && +curpage < +page) curpage++
-	if ( (answer == "p" || answer == "k") && +curpage > 1) curpage--
-	if ( (answer == "t" || answer == "g") ) curpage = 1
-	if ( (answer == "b" || answer == "G") ) curpage = page
+	if ( answer == "h" ) { disp[answer] = "../"; break }
+	if ( answer == "j" && +cursor <= +dispnum ) cursor++
+	if ( answer == "j" && +cursor > +dispnum  && page > 1 ) { cursor = 1; curpage++ }
+	if ( answer == "k" && +cursor == 1  && curpage > 1 && page > 1 ) { cursor = dispnum + 1; curpage-- }
+	if ( answer == "k" && +cursor > 1 ) cursor--
+	if ( answer == "g" ) cursor = 1
+	if ( answer == "G" ) cursor = dispnum
+	if ( answer == "n" && +curpage < +page) curpage++
+	if ( answer == "p" && +curpage > 1) curpage--
+	if ( answer == "t" ) curpage = 1
+	if ( answer == "b" ) curpage = page
     }
 
     return disp[answer]
-}
-
-function notify(msg, str) {
-    system("stty -cread icanon echo 1>/dev/null 2>&1")
-    print msg
-    getline str < "-"
-    return str
-    system("stty sane")
 }
