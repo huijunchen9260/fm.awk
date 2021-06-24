@@ -1,16 +1,9 @@
-#!/usr/bin/mawk -f
+#!/usr/bin/nawk -f
 
 BEGIN {
-
-    ###################
-    #  Configuration  #
-    ###################
-
     OPENER = ( ENVIRON["OSTYPE"] ~ /darwin.*/ ? "open" : "xdg-open" )
-
-    main()
+    main();
 }
-
 END { finale(); printf "%s", dir > "/dev/stdout" }
 
 function main() {
@@ -19,19 +12,19 @@ function main() {
     RS = "\n"
     dir = ENVIRON["PWD"] "/"
     list = gen_list(dir)
-    delim = "\f"
-    num = 1
-    tmsg = dir
-    bmsg = ""
+    delim = "\f"; num = 1; tmsg = dir; bmsg = OPENER;
+    cursor = 1; curpage = 1;
 
     while (response = menu_TUI(list, delim, num, tmsg, bmsg)) {
 	gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", response)
 	if (response == "../") {
 	    gsub(/[^\/]*\/?$/, "", dir)
 	    dir = ( dir == "" ? "/" : dir )
+	    cursor = 1; curpage = 1
 	}
 	else if (response ~ /.*\/$/) {
 	    dir = dir response
+	    cursor = 1; curpage = 1
 	}
 	else {
 	    finale()
@@ -39,10 +32,7 @@ function main() {
 	    init()
 	}
 	list = gen_list(dir)
-	delim = "\f"
-	num = 1
-	tmsg = dir
-	bmsg = ""
+	delim = "\f"; num = 1; tmsg = dir; bmsg = "";
     }
 
 }
@@ -126,7 +116,7 @@ function menu_TUI_setup(list, delim) {
 	    pagearr[page] = pagearr[page] "\n" entry ". " disp[entry]
 	}
     }
-    curpage = 1;
+    # curpage = 1;
 }
 
 function search(list, delim, str) {
@@ -144,7 +134,7 @@ function search(list, delim, str) {
 
 function menu_TUI(list, delim, num, tmsg, bmsg) {
 
-    cursor = 1
+    # cursor = 1
     menu_TUI_setup(list, delim)
     while (answer !~ /^[[:digit:]]+$|\.\.\//) {
 	printf "\033\1332J\033\133H" > "/dev/stderr" # clear screen and move cursor to 0, 0
@@ -179,8 +169,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 		system("stty icanon echo")
 
 		CUP(dim[1], 1)
-		printf "\033\1332K" > "/dev/stderr" # clear line
-		printf answer > "/dev/stderr"
+		printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: %s", Narr, curpage, page, answer > "/dev/stderr"
 		cmd = "read -r ans; echo \"$ans\" 2>/dev/null"
 		cmd | getline ans
 		close(cmd)
@@ -189,16 +178,14 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
 		if (answer ~ /\/[^[:cntrl:]*]/) {
 		    slist = search(list, delim, substr(answer, 2))
-		    menu_TUI_setup(slist, delim)
+		    if (slist != "") menu_TUI_setup(slist, delim)
 		    break
-		    # continue
 		}
 
 		if ( (answer ~ /[[:digit:]]+G/) ) {
 		    ans = answer; gsub(/G/, "", ans);
 		    curpage = (+ans <= +page ? ans : page)
 		    break
-		    # continue
 		}
 
 		if (+answer > +Narr) answer = Narr
@@ -213,18 +200,24 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	    if ( answer == "r" ||
 	       ( answer ~ /[[:digit:]]/ && (+answer > +Narr || +answer < 1) ) ) {
 		menu_TUI_setup(list, delim)
+		cursor = 1
 		curpage = (+curpage > +page ? page : curpage)
 		break
 	    }
 	    if ( answer == "\r" || answer == "l" ) { answer = Ncursor; break }
 	    if ( answer == "q" ) exit
-	    if ( answer == "h" ) { answer = "../"; disp[answer] = "../"; break }
-	    if ( answer == "n" && +curpage < +page) { curpage++; break }
-	    if ( answer == "n" && +curpage == +page) { cursor = ( +curpage == +page ? Narr - dispnum*(curpage-1) : dispnum ); break }
+	    if ( answer == "h" && dir != "/" ) { answer = "../"; disp[answer] = "../"; break }
+	    if ( answer == "h" && dir = "/" ) continue
+	    if ( answer == "n" && +curpage < +page ) { curpage++; break }
+	    if ( answer == "n" && +curpage == +page && cursor != Narr - dispnum*(curpage-1) ) { cursor = ( +curpage == +page ? Narr - dispnum*(curpage-1) : dispnum ); break }
+	    if ( answer == "n" && +curpage == +page && cursor = Narr - dispnum*(curpage-1) ) continue
 	    if ( answer == "p" && +curpage > 1) { curpage--; break }
-	    if ( answer == "p" && +curpage == 1) { cursor = 1; break }
-	    if ( answer == "t" ) { curpage = 1; cursor = 1; break }
-	    if ( answer == "b" ) { curpage = page; cursor = Narr - dispnum*(curpage-1); break }
+	    if ( answer == "p" && +curpage == 1 && cursor != 1 ) { cursor = 1; break }
+	    if ( answer == "p" && +curpage == 1 && cursor = 1) continue
+	    if ( answer == "t" && ( curpage != 1 || cursor != 1 ) ) { curpage = 1; cursor = 1; break }
+	    if ( answer == "t" && curpage = 1 && cursor = 1 ) continue
+	    if ( answer == "b" && ( curpage != page || cursor != Narr - dispnum*(curpage-1) ) ) { curpage = page; cursor = Narr - dispnum*(curpage-1); break }
+	    if ( answer == "b" && curpage = page && cursor = Narr - dispnum*(curpage-1) ) continue
 
 	    #########################
 	    #  Key: Partial Redraw  #
