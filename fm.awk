@@ -1,27 +1,50 @@
-#!/usr/bin/awk -f
+#!/usr/bin/nawk -f
 
 BEGIN {
     OPENER = ( ENVIRON["OSTYPE"] ~ /darwin.*/ ? "open" : "xdg-open" )
     LASTPATH = ( ENVIRON["LASTPATH"] == "" ? "$HOME/.cache/lastpath" : ENVIRON["LASTPATH"] )
+    HISTORY = ( ENVIRON["HISTORY"] == "" ? "$HOME/.cache/fm_history" : ENVIRON["HISTORY"] )
+
     main();
 }
-END { finale(); printf "%s", dir > "/dev/stdout"; printf "%s", dir > LASTPATH }
+END {
+    finale();
+    printf "%s", dir > "/dev/stdout";
+    printf "%s", dir > LASTPATH
+}
 
 function main() {
 
     init()
     RS = "\n"
     dir = ENVIRON["PWD"] "/"
-    list = gen_list(dir)
-    delim = "\f"; num = 1; tmsg = dir; bmsg = OPENER;
-    cursor = 1; curpage = 1;
 
-    while (response = menu_TUI(list, delim, num, tmsg, bmsg)) {
+    do {
+	list = gen_list(dir)
+	dispdir = dir
+	if (length(dir) > 0.6*dim[2]) {
+	    path = ""
+	    split(dispdir, dispdirarr, "/")
+	    for (i = 1; i in dispdirarr; i++) {
+		path = path "/" substr(dispdirarr[i], 1, 1)
+	    }
+	    dispdir = substr(path, 2)
+	}
+	delim = "\f"; num = 1; tmsg = dispdir; bmsg = OPENER;
+	cursor = 1; curpage = 1;
+
+	response = menu_TUI(list, delim, num, tmsg, bmsg)
 	gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", response)
+
 	if (response == "../") {
 	    gsub(/[^\/]*\/?$/, "", dir)
 	    dir = ( dir == "" ? "/" : dir )
 	    cursor = 1; curpage = 1
+	}
+	else if (response == "./") {
+	    finale()
+	    system("cd \"" dir response "\" && ${SHELL:=/bin/sh}")
+	    init()
 	}
 	else if (response ~ /.*\/$/) {
 	    dir = dir response
@@ -32,9 +55,8 @@ function main() {
 	    system(OPENER " \"" dir response "\"")
 	    init()
 	}
-	list = gen_list(dir)
-	delim = "\f"; num = 1; tmsg = dir; bmsg = "";
-    }
+
+    } while (1)
 
 }
 
@@ -71,6 +93,7 @@ function gen_list(dir) {
     cmd | getline list
     close(cmd)
     if (dir != "/") {
+	gsub(/[\\.^$(){}\[\]|*+?]/, "\\\\&", dir) # escape special char
 	gsub(dir, "", list)
     }
     else {
@@ -117,7 +140,6 @@ function menu_TUI_setup(list, delim) {
 	    pagearr[page] = pagearr[page] "\n" entry ". " disp[entry]
 	}
     }
-    # curpage = 1;
 }
 
 function search(list, delim, str) {
@@ -135,7 +157,6 @@ function search(list, delim, str) {
 
 function menu_TUI(list, delim, num, tmsg, bmsg) {
 
-    # cursor = 1
     menu_TUI_setup(list, delim)
     while (answer !~ /^[[:digit:]]+$|\.\.\//) {
 	printf "\033\1332J\033\133H" > "/dev/stderr" # clear screen and move cursor to 0, 0
@@ -265,4 +286,3 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
     return disp[answer]
 }
-
