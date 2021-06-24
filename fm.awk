@@ -1,10 +1,11 @@
-#!/usr/bin/nawk -f
+#!/usr/bin/awk -f
 
 BEGIN {
     OPENER = ( ENVIRON["OSTYPE"] ~ /darwin.*/ ? "open" : "xdg-open" )
+    LASTPATH = ( ENVIRON["LASTPATH"] == "" ? "$HOME/.cache/lastpath" : ENVIRON["LASTPATH"] )
     main();
 }
-END { finale(); printf "%s", dir > "/dev/stdout" }
+END { finale(); printf "%s", dir > "/dev/stdout"; printf "%s", dir > LASTPATH }
 
 function main() {
 
