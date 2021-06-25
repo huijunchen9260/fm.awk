@@ -1,60 +1,80 @@
 #!/usr/bin/nawk -f
 
 BEGIN {
+
+    ###################
+    #  Configuration  #
+    ###################
+
     OPENER = ( ENVIRON["OSTYPE"] ~ /darwin.*/ ? "open" : "xdg-open" )
-    LASTPATH = ( ENVIRON["LASTPATH"] == "" ? "$HOME/.cache/lastpath" : ENVIRON["LASTPATH"] )
-    HISTORY = ( ENVIRON["HISTORY"] == "" ? "$HOME/.cache/fm_history" : ENVIRON["HISTORY"] )
+    LASTPATH = ( ENVIRON["LASTPATH"] == "" ? ( ENVIRON["HOME"] "/.cache/lastpath" ) : ENVIRON["LASTPATH"] )
+    HISTORY = ( ENVIRON["HISTORY"] == "" ? ( ENVIRON["HOME"] "/.cache/history" ) : ENVIRON["HISTORY"] )
+
+    ####################
+    #  Initialization  #
+    ####################
+
+    init()
+    RS = "\n"
+    dir = ENVIRON["PWD"] "/"
+    cursor = 1; curpage = 1;
+
+    #############
+    #  Actions  #
+    #############
+
+    action = "History" RS \
+	     "Open in"
 
     main();
 }
+
 END {
     finale();
+    hist_clean();
     printf "%s", dir > "/dev/stdout";
     printf "%s", dir > LASTPATH
 }
 
 function main() {
 
-    init()
-    RS = "\n"
-    dir = ENVIRON["PWD"] "/"
-
     do {
-	list = gen_list(dir)
-	dispdir = dir
-	if (length(dir) > 0.6*dim[2]) {
-	    path = ""
-	    split(dispdir, dispdirarr, "/")
-	    for (i = 1; i in dispdirarr; i++) {
-		path = path "/" substr(dispdirarr[i], 1, 1)
-	    }
-	    dispdir = substr(path, 2)
-	}
-	delim = "\f"; num = 1; tmsg = dispdir; bmsg = OPENER;
-	cursor = 1; curpage = 1;
+	list = gen_content(dir)
+	delim = "\f"; num = 1; tmsg = dir; bmsg = OPENER;
 
 	response = menu_TUI(list, delim, num, tmsg, bmsg)
 	gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", response)
 
-	if (response == "../") {
-	    gsub(/[^\/]*\/?$/, "", dir)
-	    dir = ( dir == "" ? "/" : dir )
-	    cursor = 1; curpage = 1
+	if (response == "History") {
+	    RS = "\a"
+	    cmd = "sed '1!G;h;$!d' " HISTORY; cmd | getline list; close(cmd)
+	    RS = "\n"
+	    list = list "../"; delim = "\n"; num = 1; tmsg = Choose history; bmsg = ""; hist = 1;
+	    response = menu_TUI(list, delim, num, tmsg, bmsg)
 	}
-	else if (response == "./") {
+
+	if (response == "../") {
+	    if (hist != 1) gsub(/[^\/]*\/?$/, "", dir)
+	    dir = ( dir == "" ? "/" : dir )
+	    cursor = 1; curpage = 1; hist = 0
+	    continue
+	}
+	if (response == "./") {
 	    finale()
 	    system("cd \"" dir response "\" && ${SHELL:=/bin/sh}")
 	    init()
+	    continue
 	}
-	else if (response ~ /.*\/$/) {
-	    dir = dir response
-	    cursor = 1; curpage = 1
+	if (response ~ /.*\/$/) {
+	    dir = ( hist == 1 ? response : dir response )
+	    printf "%s\n", dir >> HISTORY;
+	    cursor = 1; curpage = 1; hist = 0
+	    continue
 	}
-	else {
-	    finale()
-	    system(OPENER " \"" dir response "\"")
-	    init()
-	}
+
+	finale()
+	system(OPENER " \"" dir response "\"")
+	init()
 
     } while (1)
 
@@ -81,7 +101,21 @@ function init() {
     ENVIRON["LANG"] = C; # simplest locale setting
 }
 
-function gen_list(dir) {
+function hist_clean() {
+
+    hist_max = 5000
+    RS = "\f"; getline hisfile < HISTORY; close(HISTORY); RS = "\n";
+    N = split(hisfile, hisarr, "\n")
+    if (N > hist_max) {
+	for (i = N-hist_max; i in hisarr; i++) {
+	    histmp = histmp "\n" hisarr[i]
+	}
+	hisfile = substr(histmp, 2)
+	printf "%s", hisfile > HISTORY
+    }
+}
+
+function gen_content(dir) {
 
     cmd = "for f in \"" dir "\"* \"" dir "\".* ; do "\
 	      "test -L \"$f\" && test -f \"$f\" && printf '\f\033\1331;36m%s\033\133m' \"$f\" && continue; "\
@@ -159,12 +193,12 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
     menu_TUI_setup(list, delim)
     while (answer !~ /^[[:digit:]]+$|\.\.\//) {
+
 	printf "\033\1332J\033\133H" > "/dev/stderr" # clear screen and move cursor to 0, 0
 	CUP(1, 1);
-	hud = "page: [n]ext, [p]rev, [r]eload, [t]op, [b]ottom, [num+G]o; entry: [h/k/j/l]-[←/↑/↓/→], [/]search, [q]uit"
+	hud = "page: [n]ext, [p]rev, [r]efresh, [t]op, [b]ottom, [num+G]o; entry: [h/k/j/l]-[←/↑/↓/→], [/]search; [a]ctions, [q]uit"
 	gsub("[[]", "[\033\1331m", hud); gsub("[]]", "\033\133m]", hud)
 	printf hud > "/dev/stderr"
-
 	CUP(2, 1)
 	hline = sprintf("%" dim[2] "s", "")
 	gsub(/ /, "━", hline)
@@ -227,6 +261,12 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 		break
 	    }
 	    if ( answer == "\r" || answer == "l" ) { answer = Ncursor; break }
+	    if ( answer == "a" ) {
+		menu_TUI_setup(action, "\n")
+		cursor = 1
+		curpage = (+curpage > +page ? page : curpage)
+		break
+	    }
 	    if ( answer == "q" ) exit
 	    if ( answer == "h" && dir != "/" ) { answer = "../"; disp[answer] = "../"; break }
 	    if ( answer == "h" && dir = "/" ) continue
