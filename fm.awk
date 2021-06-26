@@ -16,7 +16,7 @@ BEGIN {
 
     init()
     RS = "\n"
-    dir = ENVIRON["PWD"] "/"
+    dir = ( ENVIRON["PWD"] == "/" ? "/" : ENVIRON["PWD"] "/" )
     cursor = 1; curpage = 1;
 
     #############
@@ -40,7 +40,7 @@ function main() {
 
     do {
 	list = gen_content(dir)
-	delim = "\f"; num = 1; tmsg = dir; bmsg = OPENER;
+	delim = "\f"; num = 1; tmsg = dir; bmsg = "Browsing";
 
 	response = menu_TUI(list, delim, num, tmsg, bmsg)
 	gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", response)
@@ -49,13 +49,14 @@ function main() {
 	    RS = "\a"
 	    cmd = "sed '1!G;h;$!d' " HISTORY; cmd | getline list; close(cmd)
 	    RS = "\n"
-	    list = list "../"; delim = "\n"; num = 1; tmsg = Choose history; bmsg = ""; hist = 1;
+	    list = list "../"; delim = "\n"; num = 1; tmsg = Choose history; bmsg = "Action: " response; hist = 1;
 	    response = menu_TUI(list, delim, num, tmsg, bmsg)
 	}
 
 	if (response == "../") {
 	    if (hist != 1) gsub(/[^\/]*\/?$/, "", dir)
 	    dir = ( dir == "" ? "/" : dir )
+	    printf "%s\n", dir >> HISTORY;
 	    cursor = 1; curpage = 1; hist = 0
 	    continue
 	}
@@ -103,6 +104,7 @@ function gen_content(dir) {
 	      "test -f \"$f\" && printf '\f%s' \"$f\" && continue; "\
 	      "test -d \"$f\" && printf '\f\033\1331;34m%s\033\133m' \"$f\"/ ; "\
 	  "done"
+
     cmd | getline list
     close(cmd)
     if (dir != "/") {
@@ -217,7 +219,6 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
 	    answer = ""
 	    do {
-		ans = ""
 		cmd = "dd ibs=1 count=1 2>/dev/null;"
 		cmd | getline ans
 		close(cmd)
@@ -265,15 +266,15 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	    if ( answer == "r" ||
 	       ( answer ~ /^[[:digit:]]$/ && (+answer > +Narr || +answer < 1) ) ) {
 		menu_TUI_setup(list, delim)
-		cursor = 1
-		curpage = (+curpage > +page ? page : curpage)
+		tmsg = dir; bmsg = "Browsing"
+		cursor = 1; curpage = (+curpage > +page ? page : curpage)
 		break
 	    }
 	    if ( answer == "\r" || answer == "l" || answer ~ /\[C/ ) { answer = Ncursor; break }
 	    if ( answer == "a" ) {
 		menu_TUI_setup(action, "\n")
-		cursor = 1
-		curpage = (+curpage > +page ? page : curpage)
+		tmsg = ""; bmsg = "Actions"
+		cursor = 1; curpage = (+curpage > +page ? page : curpage)
 		break
 	    }
 	    if ( answer == "q" ) exit
