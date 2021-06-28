@@ -1,4 +1,4 @@
-#!/usr/bin/mawk -f
+#!/usr/bin/awk -f
 
 BEGIN {
 
@@ -9,6 +9,7 @@ BEGIN {
     OPENER = ( ENVIRON["OSTYPE"] ~ /darwin.*/ ? "open" : "xdg-open" )
     LASTPATH = ( ENVIRON["LASTPATH"] == "" ? ( ENVIRON["HOME"] "/.cache/lastpath" ) : ENVIRON["LASTPATH"] )
     HISTORY = ( ENVIRON["HISTORY"] == "" ? ( ENVIRON["HOME"] "/.cache/history" ) : ENVIRON["HISTORY"] )
+    hash = sprintf("\033\1338m%s\033\133m", 4879234*rand())
 
     ####################
     #  Initialization  #
@@ -24,7 +25,9 @@ BEGIN {
     #############
 
     action = "History" RS \
-	     "Open in"
+	     "mv" RS \
+	     "cp -R" RS \
+	     "ln -sf"
 
     main();
 }
@@ -32,41 +35,86 @@ BEGIN {
 END {
     finale();
     hist_clean();
-    printf "%s", dir > "/dev/stdout";
-    printf "%s", dir > LASTPATH
+    if (list != "empty") {
+	printf "%s", dir > "/dev/stdout";
+	printf "%s", dir > LASTPATH
+    }
 }
 
 function main() {
 
     do {
+
 	list = gen_content(dir)
-	delim = "\f"; num = 1; tmsg = dir; bmsg = "Browsing";
+	delim = "\f"; num = 1; tmsg = dir; bmsg = ( bmsg == "" ? "Browsing" : bmsg );
+	menu_TUI(list, delim, num, tmsg, bmsg)
+	response = result[1]
+	bmsg = result[2]
 
-	response = menu_TUI(list, delim, num, tmsg, bmsg)
-	gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", response)
+	#######################
+	#  Matching: Actions  #
+	#######################
 
-	if (response == "History") {
-	    RS = "\a"
-	    cmd = "sed '1!G;h;$!d' " HISTORY; cmd | getline list; close(cmd)
-	    RS = "\n"
-	    list = list "../"; delim = "\n"; num = 1; tmsg = Choose history; bmsg = "Action: " response; hist = 1;
-	    response = menu_TUI(list, delim, num, tmsg, bmsg)
+	if (bmsg == "Actions") {
+	    if (response == "History") {
+		RS = "\a"
+		cmd = "sed '1!G;h;$!d' " HISTORY; cmd | getline list; close(cmd)
+		RS = "\n"
+		list = list "../"; delim = "\n"; num = 1; tmsg = "Choose history: "; bmsg = "Action: " response; hist = 1;
+		empty_selected()
+		menu_TUI(list, delim, num, tmsg, bmsg)
+		response = result[1]
+		bmsg = result[2]
+	    }
+
+	    if (response == "mv" || response == "cp -R" || response == "ln -sf") {
+		if (isEmpty(selected)) {
+		    bmsg = sprintf("\033\13338;5;15m\033\13348;5;9m%s\033\133m", "Error: Nothing Selected")
+		}
+		else {
+		    bmsg = "Action: choosing destination";  act = response
+		    while (1) {
+			tmsg = dir
+			list = gen_content(dir)
+			menu_TUI(list, delim, num, tmsg, bmsg)
+			gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", result[1])
+			if (result[1] == "../") { gsub(/[^\/]*\/?$/, "", dir); dir = ( dir == "" ? "/" : dir ); continue }
+			if (result[1] == "./") break
+			if (result[1] ~ /.*\/$/) dir = dir result[1]
+		    }
+		    for (sel in selected) {
+			system(act " " selected[sel] " " dir)
+		    }
+		    empty_selected()
+		    continue
+		}
+	    }
 	}
+
+	########################
+	#  Matching: Browsing  #
+	########################
+
+	gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", response)
 
 	if (response == "../") {
 	    if (hist != 1) gsub(/[^\/]*\/?$/, "", dir)
+	    empty_selected()
 	    dir = ( dir == "" ? "/" : dir )
 	    printf "%s\n", dir >> HISTORY;
 	    cursor = 1; curpage = 1; hist = 0
 	    continue
 	}
+
 	if (response == "./") {
 	    finale()
 	    system("cd \"" dir response "\" && ${SHELL:=/bin/sh}")
 	    init()
 	    continue
 	}
+
 	if (response ~ /.*\/$/) {
+	    empty_selected()
 	    dir = ( hist == 1 ? response : dir response )
 	    printf "%s\n", dir >> HISTORY;
 	    cursor = 1; curpage = 1; hist = 0
@@ -105,11 +153,15 @@ function gen_content(dir) {
 	      "test -d \"$f\" && printf '\f\033\1331;34m%s\033\133m' \"$f\"/ ; "\
 	  "done"
 
-    cmd | getline list
+    code = cmd | getline list
     close(cmd)
-    if (dir != "/") {
+    if (code <= 0) {
+	list = "empty"
+    }
+    else if (dir != "/") {
 	gsub(/[\\.^$(){}\[\]|*+?]/, "\\\\&", dir) # escape special char
 	gsub(dir, "", list)
+	list = substr(list, 2)
     }
     else {
 	Narr = split(list, listarr, "\f")
@@ -119,11 +171,14 @@ function gen_content(dir) {
 	    sub(/\//, "", listarr[entry])
 	    list = list "\f" listarr[entry]
 	}
+	list = substr(list, 2)
     }
-    list = substr(list, 2)
     return list
 
 }
+
+# Credit: https://stackoverflow.com/a/20078022
+function isEmpty(arr, idx) { for (idx in arr) return 0; return 1 }
 
 ##################
 #  Start of TUI  #
@@ -155,6 +210,29 @@ function CUP(lines, cols) {
     printf("\033\133%s;%sH", lines, cols) > "/dev/stderr"
 }
 
+function draw_selected() {
+    for (sel in selected) {
+	if (selpage[sel] == curpage) {
+	    CUP(top + (sel-dispnum*(curpage-1))*num - num, 1)
+	    for (i = 1; i <= num; i++) {
+		printf "\033\1332K" > "/dev/stderr" # clear line
+		CUP(top + cursor*num - num + i, 1)
+	    }
+	    CUP(top + (sel-dispnum*(curpage-1))*num - num, 1)
+	    gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", seldisp[sel])
+
+	    if (cursor == sel-dispnum*(curpage-1)) {
+		printf "  \033\1337;31m%s%s\033\133m", sel ". ", seldisp[sel] > "/dev/stderr"
+	    }
+	    else {
+		printf "  \033\1331;31m%s%s\033\133m", sel ". ", seldisp[sel] > "/dev/stderr"
+	    }
+	}
+    }
+}
+
+function empty_selected() { split("", selected, ":"); split("", seldisp, ":"); split("", selpage, ":"); }
+
 function menu_TUI_setup(list, delim) {
     answer = ""; page = 0; split("", pagearr, ":") # delete saved array
     cmd = "stty size"
@@ -177,6 +255,7 @@ function menu_TUI_setup(list, delim) {
 	    pagearr[page] = pagearr[page] "\n" entry ". " disp[entry]
 	}
     }
+
 }
 
 function search(list, delim, str) {
@@ -194,6 +273,7 @@ function search(list, delim, str) {
 
 function menu_TUI(list, delim, num, tmsg, bmsg) {
 
+    cursor = 1; oldCursor = 1
     menu_TUI_setup(list, delim)
     while (answer !~ /^[[:digit:]]+$|\.\.\//) {
 
@@ -205,11 +285,16 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	CUP(2, 1)
 	hline = sprintf("%" dim[2] "s", "")
 	gsub(/ /, "━", hline)
+	# gsub(/ /, "\x1b(0\x71\x1b(B", hline)
 	printf hline > "/dev/stderr"
 	CUP(top, 1); print pagearr[curpage] > "/dev/stderr"
+
 	cursor = ( cursor+dispnum*(curpage-1) > Narr ? Narr - dispnum*(curpage-1) : cursor )
 	Ncursor = cursor+dispnum*(curpage-1)
-	CUP(top + cursor*num - num, 1); printf "%s\033\1330;7m%s\033\133m", Ncursor ". ", disp[Ncursor] > "/dev/stderr"
+	CUP(top + cursor*num - num, 1); printf "%s\033\1337m%s\033\133m", Ncursor ". ", disp[Ncursor] > "/dev/stderr"
+
+	if (bmsg !~ /Action.*/) draw_selected()
+
 	CUP(3, 1); print tmsg disp[Ncursor] > "/dev/stderr"
 	CUP(dim[1] - 2, 1); print bmsg > "/dev/stderr"
 	CUP(dim[1], 1)
@@ -225,7 +310,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 		gsub(/[\\.^$(){}\[\]|*+?]/, "\\\\&", ans) # escape special char
 		answer = ( ans ~ /\033/ ? answer : answer ans )
 		if (answer ~ /^\\\[5$|^\\\[6$/) ans = ""; continue;
-	    } while (ans !~ /[[:alnum:]~/]/ )
+	    } while (ans !~ /[[:space:][:alnum:]~\/]/ )
 
 	    #######################################
 	    #  Key: entry choosing and searching  #
@@ -236,9 +321,11 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 		system("stty icanon echo")
 		CUP(dim[1], 1)
 		printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: %s", Narr, curpage, page, answer > "/dev/stderr"
+		printf "\033\133?25h" > "/dev/stderr" # show cursor
 		cmd = "read -r ans; echo \"$ans\" 2>/dev/null"
 		cmd | getline ans
 		close(cmd)
+		printf "\033\133?25l" > "/dev/stderr" # hide cursor
 		system("stty -icanon -echo")
 		answer = answer ans; ans = ""
 
@@ -267,14 +354,14 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	       ( answer ~ /^[[:digit:]]$/ && (+answer > +Narr || +answer < 1) ) ) {
 		menu_TUI_setup(list, delim)
 		tmsg = dir; bmsg = "Browsing"
-		cursor = 1; curpage = (+curpage > +page ? page : curpage)
+		cursor = 1; curpage = (+curpage > +page ? page : curpage);
 		break
 	    }
 	    if ( answer == "\r" || answer == "l" || answer ~ /\[C/ ) { answer = Ncursor; break }
 	    if ( answer == "a" ) {
 		menu_TUI_setup(action, "\n")
 		tmsg = ""; bmsg = "Actions"
-		cursor = 1; curpage = (+curpage > +page ? page : curpage)
+		cursor = 1; curpage = 1;
 		break
 	    }
 	    if ( answer == "q" ) exit
@@ -300,11 +387,40 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	    if ( (answer == "k" || answer ~ /\[A/) && +cursor == 1  && curpage > 1 && page > 1 ) { cursor = dispnum; curpage--; break }
 	    if ( (answer == "k" || answer ~ /\[A/) && +cursor >= 1 ) { oldCursor = cursor; cursor--; }
 	    if ( answer == "g" ) { oldCursor = cursor; cursor = 1; }
-	    if ( answer == "G" ) { oldCursor = cursor; cursor = ( +curpage == +page ? Narr - dispnum*(curpage-1) : dispnum ); }
+	    if ( answer == "G" ) { oldCursor = cursor; cursor = ( +curpage == +page ?  Narr - dispnum*(curpage-1) : dispnum ); }
+	    if ( answer == " " ) {
+		if (selected[Ncursor] == "") {
+		    TMP = disp[Ncursor]; gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", TMP)
+		    selected[Ncursor] = dir TMP;
+		    seldisp[Ncursor] = TMP;
+		    selpage[Ncursor] = curpage;
+		    cursor++
+		    bmsg = disp[Ncursor] " selected"
+		}
+		else {
+		    delete selected[Ncursor]
+		    delete seldisp[Ncursor]
+		    delete selpage[Ncursor]
+		    cursor++
+		    bmsg = disp[Ncursor] " cancelled"
+		    break
+		}
+	    }
 
-	    ################################################
-	    #  Partial redraw: tmsg, old entry, new entry  #
-	    ################################################
+	    if (answer == "s") {
+		printf "\033\1332J\033\133H"
+		for (sel in selected) {
+		    print selected[sel]
+		}
+		cmd = "read -r ans; echo \"$ans\""
+		cmd | getline str
+		close(cmd)
+		break
+	    }
+
+	    ####################################################################
+	    #  Partial redraw: tmsg, bmsg, old entry, new entry, and selected  #
+	    ####################################################################
 
 	    Ncursor = cursor+dispnum*(curpage-1); oldNcursor = oldCursor+dispnum*(curpage-1);
 	    if (Ncursor > Narr) { Ncursor = Narr; cursor = Narr - dispnum*(curpage-1); continue }
@@ -314,8 +430,12 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	    printf "\033\1332K" > "/dev/stderr" # clear line
 	    print tmsg disp[Ncursor] > "/dev/stderr"
 
+	    CUP(dim[1] - 2, 1); # bmsg
+	    printf "\033\1332K" > "/dev/stderr" # clear line
+	    print bmsg > "/dev/stderr"
+
 	    CUP(top + oldCursor*num - num, 1); # old entry
-	    for (i = 1; i < num; i++) {
+	    for (i = 1; i <= num; i++) {
 		printf "\033\1332K" > "/dev/stderr" # clear line
 		CUP(top + oldCursor*num - num + i, 1)
 	    }
@@ -323,16 +443,37 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	    printf "%s", oldNcursor ". " disp[oldNcursor] > "/dev/stderr"
 
 	    CUP(top + cursor*num - num, 1); # new entry
-	    for (i = 1; i < num; i++) {
+	    for (i = 1; i <= num; i++) {
 		printf "\033\1332K" > "/dev/stderr" # clear line
 		CUP(top + cursor*num - num + i, 1)
 	    }
 	    CUP(top + cursor*num - num, 1);
-	    printf "%s\033\1330;7m%s\033\133m", Ncursor ". ", disp[Ncursor] > "/dev/stderr"
+	    printf "%s\033\1337m%s\033\133m", Ncursor ". ", disp[Ncursor] > "/dev/stderr"
+
+	    if (bmsg !~ /Action.*/) draw_selected()
 
 	}
 
     }
 
-    return disp[answer]
+    result[1] = disp[answer]
+    result[2] = bmsg
 }
+
+
+function notify(msg, str) {
+
+    printf "\033\1332J\033\133H"
+    RS = "\n" # stop getline by enter
+    print msg
+    system("stty icanon echo")
+    printf "\033\133?25h" > "/dev/stderr" # show cursor
+    cmd = "read -r ans; echo \"$ans\""
+    cmd | getline str
+    close(cmd)
+    printf "\033\133?25l" > "/dev/stderr" # hide cursor
+    RS = "\f"
+    system("stty -icanon -echo")
+    return str
+}
+
