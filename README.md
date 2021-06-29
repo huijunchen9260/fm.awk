@@ -19,6 +19,7 @@ File manager written in awk
     - `mv`
     - `cp -R`
     - `ln -sf`
+    - `rm -rf` && yes-no prompt
 
 ## TODO
 

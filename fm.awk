@@ -9,14 +9,13 @@ BEGIN {
     OPENER = ( ENVIRON["OSTYPE"] ~ /darwin.*/ ? "open" : "xdg-open" )
     LASTPATH = ( ENVIRON["LASTPATH"] == "" ? ( ENVIRON["HOME"] "/.cache/lastpath" ) : ENVIRON["LASTPATH"] )
     HISTORY = ( ENVIRON["HISTORY"] == "" ? ( ENVIRON["HOME"] "/.cache/history" ) : ENVIRON["HISTORY"] )
-    hash = sprintf("\033\1338m%s\033\133m", 4879234*rand())
 
     ####################
     #  Initialization  #
     ####################
 
     init()
-    RS = "\n"
+    RS = "\a"
     dir = ( ENVIRON["PWD"] == "/" ? "/" : ENVIRON["PWD"] "/" )
     cursor = 1; curpage = 1;
 
@@ -27,7 +26,8 @@ BEGIN {
     action = "History" RS \
 	     "mv" RS \
 	     "cp -R" RS \
-	     "ln -sf"
+	     "ln -sf" RS \
+	     "rm -rf"
 
     main();
 }
@@ -56,34 +56,34 @@ function main() {
 	#######################
 
 	if (bmsg == "Actions") {
-	    if (response == "History") {
-		RS = "\a"
-		cmd = "sed '1!G;h;$!d' " HISTORY; cmd | getline list; close(cmd)
-		RS = "\n"
-		list = list "../"; delim = "\n"; num = 1; tmsg = "Choose history: "; bmsg = "Action: " response; hist = 1;
-		empty_selected()
-		menu_TUI(list, delim, num, tmsg, bmsg)
-		response = result[1]
-		bmsg = result[2]
-	    }
-
-	    if (response == "mv" || response == "cp -R" || response == "ln -sf") {
+	    if (response == "History") { hist_act(); empty_selected(); response = result[1]; bmsg = result[2]; }
+	    if (response == "mv" || response == "cp -R" || response == "ln -sf" || response == "rm -rf") {
 		if (isEmpty(selected)) {
 		    bmsg = sprintf("\033\13338;5;15m\033\13348;5;9m%s\033\133m", "Error: Nothing Selected")
+		}
+		else if (response == "rm -rf") {
+		    act = response
+		    list = "Yes" delim "No"; tmsg = "Execute " response "? "; bmsg = "Action: " response
+		    menu_TUI(list, delim, num, tmsg, bmsg)
+		    if (result[1] == "Yes") {
+			for (sel in selected) {
+			    system(act " \"" selected[sel] "\"")
+			}
+		    }
 		}
 		else {
 		    bmsg = "Action: choosing destination";  act = response
 		    while (1) {
-			tmsg = dir
-			list = gen_content(dir)
+			list = gen_content(dir); delim = "\f"; num = 1; tmsg = dir;
 			menu_TUI(list, delim, num, tmsg, bmsg)
 			gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", result[1])
 			if (result[1] == "../") { gsub(/[^\/]*\/?$/, "", dir); dir = ( dir == "" ? "/" : dir ); continue }
-			if (result[1] == "./") break
+			if (result[1] == "./") { bmsg = "Browsing"; break; }
+			if (result[1] == "History") { hist_act(); dir = result[1]; continue; }
 			if (result[1] ~ /.*\/$/) dir = dir result[1]
 		    }
 		    for (sel in selected) {
-			system(act " " selected[sel] " " dir)
+			system(act " \"" selected[sel] "\" \"" dir "\"")
 		    }
 		    empty_selected()
 		    continue
@@ -129,10 +129,16 @@ function main() {
 
 }
 
+function hist_act() {
+    cmd = "sed '1!G;h;$!d' " HISTORY; cmd | getline list; close(cmd)
+    list = list "../"; delim = "\n"; num = 1; tmsg = "Choose history: "; bmsg = "Action: " response; hist = 1;
+    menu_TUI(list, delim, num, tmsg, bmsg)
+}
+
 function hist_clean() {
 
     hist_max = 5000
-    RS = "\f"; getline hisfile < HISTORY; close(HISTORY); RS = "\n";
+    getline hisfile < HISTORY; close(HISTORY);
     N = split(hisfile, hisarr, "\n")
     if (N > hist_max) {
 	for (i = N-hist_max; i in hisarr; i++) {
@@ -152,6 +158,13 @@ function gen_content(dir) {
 	      "test -f \"$f\" && printf '\f%s' \"$f\" && continue; "\
 	      "test -d \"$f\" && printf '\f\033\1331;34m%s\033\133m' \"$f\"/ ; "\
 	  "done"
+    # cmd = "for f in \"" dir "\"* \"" dir "\".* ; do "\
+	      # "test -L \"$f\" && test -f \"$f\" && printf '\f\033\1331;36m%s\033\133m' \"$f\" && continue; "\
+	      # "test -L \"$f\" && test -d \"$f\" && printf '\f\033\1331;36m%s\033\133m' \"$f\"/ && continue; "\
+	      # "test -d \"$f\" && printf '\f\033\1331;34m%s\033\133m' \"$f\"/ && continue; "\
+	      # "test -x \"$f\" && printf '\f\033\1331;32m%s\033\133m' \"$f\" && continue; "\
+	      # "printf '\f%s' \"$f\" && continue; "\
+	  # "done"
 
     code = cmd | getline list
     close(cmd)
@@ -273,7 +286,7 @@ function search(list, delim, str) {
 
 function menu_TUI(list, delim, num, tmsg, bmsg) {
 
-    cursor = 1; oldCursor = 1
+    oldCursor = 1
     menu_TUI_setup(list, delim)
     while (answer !~ /^[[:digit:]]+$|\.\.\//) {
 
@@ -315,6 +328,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	    #######################################
 	    #  Key: entry choosing and searching  #
 	    #######################################
+
 
 	    if ( answer ~ /^[[:digit:]]$/ || answer == "/" ) {
 
@@ -359,7 +373,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	    }
 	    if ( answer == "\r" || answer == "l" || answer ~ /\[C/ ) { answer = Ncursor; break }
 	    if ( answer == "a" ) {
-		menu_TUI_setup(action, "\n")
+		menu_TUI_setup(action, "\a")
 		tmsg = ""; bmsg = "Actions"
 		cursor = 1; curpage = 1;
 		break
