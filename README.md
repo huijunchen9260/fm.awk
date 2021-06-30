@@ -14,6 +14,8 @@ File manager written in awk
 ## Actions
 
 - [x] Bulk selection
+- [x] Bulk selection all
+- [x] Directory / File preview
 - Actions:
     - History
     - `mv`
@@ -21,8 +23,23 @@ File manager written in awk
     - `ln -sf`
     - `rm -rf` && yes-no prompt
 
+## Configuration
+
+edit `fm.awk`, modify the first configuration section:
+
+```awk
+    ###################
+    #  Configuration  #
+    ###################
+
+    OPENER = ( ENVIRON["OSTYPE"] ~ /darwin.*/ ? "open" : "xdg-open" )
+    LASTPATH = ( ENVIRON["LASTPATH"] == "" ? ( ENVIRON["HOME"] "/.cache/lastpath" ) : ENVIRON["LASTPATH"] )
+    HISTORY = ( ENVIRON["HISTORY"] == "" ? ( ENVIRON["HOME"] "/.cache/history" ) : ENVIRON["HISTORY"] )
+    PREVIEW = 1
+    FILE_PREVIEW = 0
+```
+
 ## TODO
 
-- [ ] Bulk selection all
-
+- [ ] Better Interface
 
