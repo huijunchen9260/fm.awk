@@ -1,4 +1,4 @@
-#!/usr/bin/mawk -f
+#!/usr/bin/awk -f
 
 BEGIN {
 
@@ -10,7 +10,7 @@ BEGIN {
     LASTPATH = ( ENVIRON["LASTPATH"] == "" ? ( ENVIRON["HOME"] "/.cache/lastpath" ) : ENVIRON["LASTPATH"] )
     HISTORY = ( ENVIRON["HISTORY"] == "" ? ( ENVIRON["HOME"] "/.cache/history" ) : ENVIRON["HISTORY"] )
     PREVIEW = 1
-    FILE_PREVIEW = 0
+    FILE_PREVIEW = 1
 
     ####################
     #  Initialization  #
@@ -161,20 +161,6 @@ function gen_content(dir) {
 	      "test -d \"$f\" && printf '\f\033\1331;34m%s\033\133m' \"$f\"/ ; "\
 	  "done"
 
-    # cmd = "for f in \"" dir "\"*/ \"" dir "\".*/; do "\
-	    # "test -L \"${f%/}\" && "\
-	    # "Dirs=\"$Dirs\f$(printf '\033\1331;36m%s\033\133m' \"$f\")\" || "\
-	    # "Dirs=\"$Dirs\f$(printf '\033\1331;34m%s\033\133m' \"$f\")\"; "\
-	  # "done; "\
-    #       "for f in \"" dir "\"* \"" dir "\".*; do "\
-	    # "case \"$Dirs\" in "\
-		# "*\"$f\"*) ;;"\
-	        # "*) test -x \"$f\" && "\
-	 	  # "Files=\"$Files\f$(printf '\033\1331;32m%s\033\133m' \"$f\")\" || "\
-	 	  # "Files=\"$Files\f$(printf '%s' \"$f\")\" ;;"\
-	    # "esac; "\
-	  # "done; printf '%s' \"$Dirs\" \"$Files\""
-
     code = cmd | getline list
     close(cmd)
     if (code <= 0) {
@@ -210,7 +196,7 @@ function finale() {
     printf "\033\1332J\033\133H" > "/dev/stderr" # clear screen
     printf "\033\133?7h" > "/dev/stderr" # line wrap
     printf "\033\1338" > "/dev/stderr" # restore cursor
-    printf "\033\133?25h" > "/dev/stderr" # show cursor
+    printf "\033\133?25h" > "/dev/stderr" # hide cursor
     printf "\033\133?1049l" > "/dev/stderr" # back from alternate buffer
     system("stty icanon echo")
     ENVIRON["LANG"] = LANG; # restore LANG
@@ -222,7 +208,7 @@ function init() {
     printf "\033\133?1049h" > "/dev/stderr" # alternate buffer
     printf "\033\1337" > "/dev/stderr" # save cursor
     printf "\033\133?25l" > "/dev/stderr" # hide cursor
-    printf "\033\133?7l" > "/dev/stderr" # line unwrap
+    printf "\033\133?7l" > "/dev/stderr" # line wrap
     LANG = ENVIRON["LANG"]; # save LANG
     ENVIRON["LANG"] = C; # simplest locale setting
 }
@@ -307,26 +293,28 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	CUP(2, 1)
 	hline = sprintf("%" dim[2] "s", "")
 	gsub(/ /, "━", hline)
+	# gsub(/ /, "\x1b(0\x71\x1b(B", hline)
 	printf hline > "/dev/stderr"
 	CUP(top, 1); print pagearr[curpage] > "/dev/stderr"
+
 	cursor = ( cursor+dispnum*(curpage-1) > Narr ? Narr - dispnum*(curpage-1) : cursor )
 	Ncursor = cursor+dispnum*(curpage-1)
 	CUP(top + cursor*num - num, 1); printf "%s\033\1337m%s\033\133m", Ncursor ". ", disp[Ncursor] > "/dev/stderr"
-	CUP(3, 1); print tmsg disp[Ncursor] > "/dev/stderr"
-	CUP(dim[1] - 2, 1); print bmsg > "/dev/stderr"
-	CUP(dim[1], 1)
-	printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: ", Narr, curpage, page > "/dev/stderr"
 
 	if (bmsg !~ /Action.*/) draw_selected()
 	if (bmsg !~ /Action.*/ && PREVIEW == 1) preview(disp[Ncursor])
 
+	CUP(3, 1); print tmsg disp[Ncursor] > "/dev/stderr"
+	CUP(dim[1] - 2, 1); print bmsg > "/dev/stderr"
+	CUP(dim[1], 1)
+	printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: ", Narr, curpage, page > "/dev/stderr"
 
 	while (1) {
 
 	    answer = ""
 	    do {
 		cmd = "dd ibs=1 count=1 2>/dev/null;"
-		cmd | getline ans
+		RS = "\n"; cmd | getline ans; RS = "\a"
 		close(cmd)
 		gsub(/[\\.^$(){}\[\]|*+?]/, "\\\\&", ans) # escape special char
 		answer = ( ans ~ /\033/ ? answer : answer ans )
@@ -432,7 +420,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	    if (answer == "A") {
 		if (isEmpty(selected)) {
 		    selp = 0
-		    for (entry in disp) {
+		    for (entry = 1; entry in disp; entry++) {
 			TMP = disp[entry]; gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", TMP)
 			selected[entry] = dir TMP;
 			seldisp[entry] = TMP;
@@ -441,7 +429,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 		    bmsg = "All selected"
 		}
 		else {
-		    for (sel in selected) {
+		    for (sel = 1; sel in selected; sel++) {
 			delete selected[sel]
 			delete seldisp[sel]
 			delete selpage[sel]
@@ -472,7 +460,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
 	    CUP(3, 1); # tmsg
 	    printf "\033\1332K" > "/dev/stderr" # clear line
-	    print tmsg disp[Ncursor] cc > "/dev/stderr"
+	    print tmsg disp[Ncursor] > "/dev/stderr"
 
 	    CUP(dim[1] - 2, 1); # bmsg
 	    printf "\033\1332K" > "/dev/stderr" # clear line
@@ -518,9 +506,9 @@ function preview(item) {
     if (path ~ /.*\/$/) {
         content = gen_content(path)
 	split(content, prev, "\f")
-	for (j = 1; j <= dispnum; j++) {
-	    CUP(top + j - 1, border + 1)
-	    print prev[j] > "/dev/stderr"
+	for (i = 1; i <= ((end - top) / num); i++) {
+	    CUP(top + i - 1, border + 1)
+	    print prev[i] > "/dev/stderr"
 	}
     }
     else if (FILE_PREVIEW == 1) {
@@ -536,13 +524,14 @@ function preview(item) {
 	    getline content < path
 	    close(path)
 	    split(content, prev, "\n")
-	    for (i = 1; i <= dispnum; i++) {
+	    for (i = 1; i <= ((end - top) / num); i++) {
 		CUP(top + i - 1, border + 1)
 		print prev[i] > "/dev/stderr"
 	    }
 	}
     }
 }
+
 
 
 function notify(msg, str) {
