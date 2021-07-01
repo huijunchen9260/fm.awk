@@ -23,6 +23,14 @@ File manager written in awk
     - `ln -sf`
     - `rm -rf` && yes-no prompt
 
+## Key bindings
+
+- `:`:
+    - to change variables in [configuration](#configuration) in runtime.
+    - to execute command on selected entries (allow alias).
+- `␣`: Bulk (de-)selection.
+- `A`: Bulk (de-) selection all.
+
 ## Configuration
 
 edit `fm.awk`, modify the first configuration section:
@@ -37,6 +45,7 @@ edit `fm.awk`, modify the first configuration section:
     HISTORY = ( ENVIRON["HISTORY"] == "" ? ( ENVIRON["HOME"] "/.cache/history" ) : ENVIRON["HISTORY"] )
     PREVIEW = 1
     FILE_PREVIEW = 0
+    RATIO = 0.35
 ```
 
 ## TODO

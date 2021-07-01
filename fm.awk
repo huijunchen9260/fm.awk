@@ -1,4 +1,4 @@
-#!/usr/bin/awk -f
+#!/usr/bin/mawk -f
 
 BEGIN {
 
@@ -9,8 +9,11 @@ BEGIN {
     OPENER = ( ENVIRON["OSTYPE"] ~ /darwin.*/ ? "open" : "xdg-open" )
     LASTPATH = ( ENVIRON["LASTPATH"] == "" ? ( ENVIRON["HOME"] "/.cache/lastpath" ) : ENVIRON["LASTPATH"] )
     HISTORY = ( ENVIRON["HISTORY"] == "" ? ( ENVIRON["HOME"] "/.cache/history" ) : ENVIRON["HISTORY"] )
+    COMMAND = ( ENVIRON["COMMAND"] == "" ? ( ENVIRON["HOME"] "/.cache/command" ) : ENVIRON["COMMAND"] )
     PREVIEW = 1
-    FILE_PREVIEW = 1
+    FILE_PREVIEW = 0
+    RATIO = 0.35
+    HIST_MAX = 5000
 
     ####################
     #  Initialization  #
@@ -48,7 +51,7 @@ function main() {
     do {
 
 	list = gen_content(dir)
-	delim = "\f"; num = 1; tmsg = dir; bmsg = "Browsing";
+	delim = "\f"; num = 1; tmsg = dir; bmsg = ( bmsg == "" ? "Browsing" : bmsg );
 	menu_TUI(list, delim, num, tmsg, bmsg)
 	response = result[1]
 	bmsg = result[2]
@@ -58,7 +61,7 @@ function main() {
 	#######################
 
 	if (bmsg == "Actions") {
-	    if (response == "History") { hist_act(); empty_selected(); response = result[1]; bmsg = result[2]; }
+	    if (response == "History") { hist_act(); empty_selected(); response = result[1]; bmsg = ""; }
 	    if (response == "mv" || response == "cp -R" || response == "ln -sf" || response == "rm -rf") {
 		if (isEmpty(selected)) {
 		    bmsg = sprintf("\033\13338;5;15m\033\13348;5;9m%s\033\133m", "Error: Nothing Selected")
@@ -72,6 +75,9 @@ function main() {
 			    system(act " \"" selected[sel] "\"")
 			}
 		    }
+		    empty_selected()
+		    bmsg = ""
+		    continue
 		}
 		else {
 		    bmsg = "Action: choosing destination";  act = response
@@ -88,6 +94,7 @@ function main() {
 			system(act " \"" selected[sel] "\" \"" dir "\"")
 		    }
 		    empty_selected()
+		    bmsg = ""
 		    continue
 		}
 	    }
@@ -138,12 +145,10 @@ function hist_act() {
 }
 
 function hist_clean() {
-
-    hist_max = 5000
     getline hisfile < HISTORY; close(HISTORY);
     N = split(hisfile, hisarr, "\n")
-    if (N > hist_max) {
-	for (i = N-hist_max; i in hisarr; i++) {
+    if (N > HIST_MAX) {
+	for (i = N-HIST_MAX; i in hisarr; i++) {
 	    histmp = histmp "\n" hisarr[i]
 	}
 	hisfile = substr(histmp, 2)
@@ -319,14 +324,14 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 		gsub(/[\\.^$(){}\[\]|*+?]/, "\\\\&", ans) # escape special char
 		answer = ( ans ~ /\033/ ? answer : answer ans )
 		if (answer ~ /^\\\[5$|^\\\[6$/) ans = ""; continue;
-	    } while (ans !~ /[[:space:][:alnum:]~\/]/ )
+	    } while (ans !~ /[[:space:][:alnum:]~\/:]/ )
 
 	    #######################################
 	    #  Key: entry choosing and searching  #
 	    #######################################
 
 
-	    if ( answer ~ /^[[:digit:]]$/ || answer == "/" ) {
+	    if ( answer ~ /^[[:digit:]]$/ || answer == "/" || answer == ":" ) {
 
 		system("stty icanon echo")
 		CUP(dim[1], 1)
@@ -338,6 +343,40 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 		printf "\033\133?25l" > "/dev/stderr" # hide cursor
 		system("stty -icanon -echo")
 		answer = answer ans; ans = ""
+
+		if (answer ~ /:file preview ?= ?.*|:fp ?= ?.*/) {
+		    FILE_PREVIEW = substr(answer, length(answer));
+		    answer = "";
+		    break;
+		}
+		if (answer ~ /:preview ?= ?.*|:p ?= ?.*/) {
+		    PREVIEW = substr(answer, length(answer));
+		    answer = "";
+		    break;
+		}
+		if (answer ~ /:ratio ?= ?.*|:r ?= ?.*/) {
+		    gsub(/:ratio ?= ?|:r ?= ?/, "", answer)
+		    RATIO = answer;
+		    answer = "";
+		    break;
+		}
+		if (answer ~ /:[^[:cntrl:]*]/) {
+		    if (isEmpty(selected)) {
+			bmsg = sprintf("\033\13338;5;15m\033\13348;5;9m%s\033\133m", "Error: Nothing Selected")
+		    }
+		    else {
+			command = substr(answer, 2)
+			for (sel in selected) {
+			    # source rc file first to allow alias
+			    system("${SHELL:=/bin/sh} -c \". ~/.${SHELL##*/}rc && eval " command " " selected[sel] " & \"")
+			}
+			empty_selected()
+		    }
+		    list = gen_content(dir)
+		    menu_TUI_setup(list, delim)
+		    break
+		}
+
 
 		if (answer ~ /\/[^[:cntrl:]*]/) {
 		    slist = search(list, delim, substr(answer, 2))
@@ -494,8 +533,8 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 }
 
 function preview(item) {
-    # clear half of screen
-    border = int(dim[2]*0.5)
+    # clear RHS of screen based on border
+    border = int(dim[2]*RATIO)
     for (i = top; i <= end; i++) {
         CUP(i, border - 1)
 	printf "\033\133K" > "/dev/stderr" # clear line
@@ -512,6 +551,7 @@ function preview(item) {
 	}
     }
     else if (FILE_PREVIEW == 1) {
+
 	cmd = "file -i \"" path "\""
 	cmd | getline type
 	close(cmd)
@@ -529,10 +569,10 @@ function preview(item) {
 		print prev[i] > "/dev/stderr"
 	    }
 	}
+
+
     }
 }
-
-
 
 function notify(msg, str) {
 
