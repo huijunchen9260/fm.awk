@@ -11,6 +11,29 @@ File manager written in awk
 - cd on exit: `cd $(command fm.awk)`
 - last path: `export LASTPATH="$HOME/.cache/lastpath"; cd $(cat -u $LASTPATH) && $TERMINAL -e fm.awk`
 
+## Key bindings
+
+- k/↑ - up
+- j/↓ - down
+- l/→ - right
+- h/← - left
+- n/PageDown - PageDown
+- p/PageUp - PageUp
+- t/Home - go to first page
+- b/End - go to last page
+- g - go to first entry in current page
+- G - go to last entry in current page
+- r - refresh
+- ! - spawn shell
+- / - search
+- : - commandline mode
+- - - go to previous directory
+- ␣ - bulk (de-)selection
+- A - bulk (de-)selection all
+- a - actions
+- ? - show keybinds
+- q - quit
+
 ## Actions
 
 - [x] Bulk selection
@@ -22,14 +45,6 @@ File manager written in awk
     - `cp -R`
     - `ln -sf`
     - `rm -rf` && yes-no prompt
-
-## Key bindings
-
-- `:`:
-    - to change variables in [configuration](#configuration) in runtime.
-    - to execute command on selected entries (allow alias).
-- `␣`: Bulk (de-)selection.
-- `A`: Bulk (de-) selection all.
 
 ## Configuration
 
@@ -48,7 +63,14 @@ edit `fm.awk`, modify the first configuration section:
     RATIO = 0.35
 ```
 
+## Commandline mode
+
+- `:cd /path/to/destination`
+    - can be relative: `:cd ../../` goes to parents two tiers
+- `:cmd ` on each selected item.
+    - e.g., After selection, `:chmod +x` to give execution permission on selected entries.
+- `cmd` can be shell alias (`bash` and `zsh` confirmed. `fish` not sure).
+
 ## TODO
 
-- [ ] Better Interface
-
+- [ ] Image preview (help needed)

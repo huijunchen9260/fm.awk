@@ -9,7 +9,6 @@ BEGIN {
     OPENER = ( ENVIRON["OSTYPE"] ~ /darwin.*/ ? "open" : "xdg-open" )
     LASTPATH = ( ENVIRON["LASTPATH"] == "" ? ( ENVIRON["HOME"] "/.cache/lastpath" ) : ENVIRON["LASTPATH"] )
     HISTORY = ( ENVIRON["HISTORY"] == "" ? ( ENVIRON["HOME"] "/.cache/history" ) : ENVIRON["HISTORY"] )
-    COMMAND = ( ENVIRON["COMMAND"] == "" ? ( ENVIRON["HOME"] "/.cache/command" ) : ENVIRON["COMMAND"] )
     PREVIEW = 1
     FILE_PREVIEW = 0
     RATIO = 0.35
@@ -33,6 +32,26 @@ BEGIN {
 	     "cp -R" RS \
 	     "ln -sf" RS \
 	     "rm -rf"
+    help = "k/↑ - up" RS \
+	   "j/↓ - down" RS \
+	   "l/→ - right" RS \
+	   "h/← - left" RS \
+	   "n/PageDown - PageDown" RS \
+	   "p/PageUp - PageUp" RS \
+	   "t/Home - go to first page" RS \
+	   "b/End - go to last page" RS \
+	   "g - go to first entry in current page" RS \
+	   "G - go to last entry in current page" RS \
+	   "r - refresh" RS \
+	   "! - spawn shell" RS \
+	   "/ - search" RS \
+	   ": - commandline mode" RS \
+	   "- - go to previous directory" RS \
+	   "␣ - bulk (de-)selection" RS \
+	   "A - bulk (de-)selection all " RS \
+	   "a - actions"
+	   "? - show keybinds" RS \
+	   "q - quit"
 
     main();
 }
@@ -107,23 +126,28 @@ function main() {
 	gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", response)
 
 	if (response == "../") {
-	    if (hist != 1) gsub(/[^\/]*\/?$/, "", dir)
+	    parent = ( dir == "/" ? "/" : dir )
+	    old_dir = parent
+	    if (hist != 1) {
+		gsub(/[^\/]*\/?$/, "", dir)
+		gsub(dir, "", parent)
+	    }
 	    empty_selected()
-	    dir = ( dir == "" ? "/" : dir )
+	    dir = ( dir == "" ? "/" : dir ); hist = 0
 	    printf "%s\n", dir >> HISTORY;
-	    cursor = 1; curpage = 1; hist = 0
 	    continue
 	}
 
 	if (response == "./") {
 	    finale()
-	    system("cd \"" dir response "\" && ${SHELL:=/bin/sh}")
+	    system("cd \"" dir "\" && ${SHELL:=/bin/sh}")
 	    init()
 	    continue
 	}
 
 	if (response ~ /.*\/$/) {
 	    empty_selected()
+	    old_dir = dir
 	    dir = ( hist == 1 ? response : dir response )
 	    printf "%s\n", dir >> HISTORY;
 	    cursor = 1; curpage = 1; hist = 0
@@ -267,6 +291,9 @@ function menu_TUI_setup(list, delim) {
 	else {
 	    pagearr[page] = pagearr[page] "\n" entry ". " disp[entry]
 	}
+	if (parent != "" && disp[entry] == sprintf("\033\1331;34m%s\033\133m", parent)) {
+	    cursor = entry - dispnum*(page - 1); curpage = page
+	}
     }
 
 }
@@ -292,13 +319,12 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
 	printf "\033\1332J\033\133H" > "/dev/stderr" # clear screen and move cursor to 0, 0
 	CUP(1, 1);
-	hud = "page: [n]ext, [p]rev, [r]efresh, [t]op, [b]ottom, [num+G]o; entry: [h/k/j/l]-[←/↑/↓/→], [/]search; [a]ctions, [q]uit"
+	hud = "page: [n]ext, [p]rev, [r]efresh, [t]op, [b]ottom; entry: [h/k/j/l]-[←/↑/↓/→], [?]help, [q]uit"
 	gsub("[[]", "[\033\1331m", hud); gsub("[]]", "\033\133m]", hud)
 	printf hud > "/dev/stderr"
 	CUP(2, 1)
 	hline = sprintf("%" dim[2] "s", "")
 	gsub(/ /, "━", hline)
-	# gsub(/ /, "\x1b(0\x71\x1b(B", hline)
 	printf hline > "/dev/stderr"
 	CUP(top, 1); print pagearr[curpage] > "/dev/stderr"
 
@@ -306,8 +332,8 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	Ncursor = cursor+dispnum*(curpage-1)
 	CUP(top + cursor*num - num, 1); printf "%s\033\1337m%s\033\133m", Ncursor ". ", disp[Ncursor] > "/dev/stderr"
 
-	if (bmsg !~ /Action.*/) draw_selected()
-	if (bmsg !~ /Action.*/ && PREVIEW == 1) preview(disp[Ncursor])
+	if (bmsg !~ /Action.*|Helps/) draw_selected()
+	if (bmsg !~ /Action.*|Helps/ && PREVIEW == 1) preview(disp[Ncursor])
 
 	CUP(3, 1); print tmsg disp[Ncursor] > "/dev/stderr"
 	CUP(dim[1] - 2, 1); print bmsg > "/dev/stderr"
@@ -315,7 +341,6 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: ", Narr, curpage, page > "/dev/stderr"
 
 	while (1) {
-
 	    answer = ""
 	    do {
 		cmd = "dd ibs=1 count=1 2>/dev/null;"
@@ -324,7 +349,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 		gsub(/[\\.^$(){}\[\]|*+?]/, "\\\\&", ans) # escape special char
 		answer = ( ans ~ /\033/ ? answer : answer ans )
 		if (answer ~ /^\\\[5$|^\\\[6$/) ans = ""; continue;
-	    } while (ans !~ /[[:space:][:alnum:]~\/:]/ )
+	    } while (ans !~ /[[:space:][:alnum:]~\/:!?-]/ )
 
 	    #######################################
 	    #  Key: entry choosing and searching  #
@@ -333,24 +358,29 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
 	    if ( answer ~ /^[[:digit:]]$/ || answer == "/" || answer == ":" ) {
 
-		system("stty icanon echo")
+		system("stty icanon echo -tabs")
 		CUP(dim[1], 1)
-		printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: %s", Narr, curpage, page, answer > "/dev/stderr"
+		if (answer ~ /^[[:digit:]]$/) {
+		    printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: %s", Narr, curpage, page, answer > "/dev/stderr"
+		}
+		else {
+		    printf "\033\1332K%s", answer > "/dev/stderr" # clear line
+		}
 		printf "\033\133?25h" > "/dev/stderr" # show cursor
 		cmd = "read -r ans; echo \"$ans\" 2>/dev/null"
 		RS = "\n"; cmd | getline ans; RS = "\a"
 		close(cmd)
 		printf "\033\133?25l" > "/dev/stderr" # hide cursor
-		system("stty -icanon -echo")
+		system("stty -icanon -echo tabs")
 		answer = answer ans; ans = ""
 
-		if (answer ~ /:file preview ?= ?.*|:fp ?= ?.*/) {
-		    FILE_PREVIEW = substr(answer, length(answer));
+		if (answer ~ /:file preview$|:fp$/) {
+		    FILE_PREVIEW = (FILE_PREVIEW == 1 ? 0 : 1)
 		    answer = "";
 		    break;
 		}
-		if (answer ~ /:preview ?= ?.*|:p ?= ?.*/) {
-		    PREVIEW = substr(answer, length(answer));
+		if (answer ~ /:preview$|:p$/) {
+		    PREVIEW = (PREVIEW == 1 ? 0 : 1)
 		    answer = "";
 		    break;
 		}
@@ -360,6 +390,35 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 		    answer = "";
 		    break;
 		}
+		if (answer ~ /:cd .*/) {
+		    old_dir = dir
+		    gsub(/:cd /, "", answer)
+		    if (answer ~ /^[\/~].*/) { # full path
+			gsub(/~/, ENVIRON["HOME"], answer)
+			dir = ( answer ~ /.*\/$/ ? answer : answer "/" )
+		    }
+		    else { # relative path
+			while (answer ~ /^\.\.\//) {
+			    gsub(/[^\/]*\/?$/, "", dir)
+			    gsub(/^\.\.\//, "", answer)
+			    dir = ( dir == "" ? "/" : dir )
+			}
+			dir = ( answer ~ /.*\/$/ || answer == "" ? dir answer : dir answer "/" )
+		    }
+		    empty_selected()
+		    tmplist = gen_content(dir)
+		    if (tmplist == "empty") {
+			dir = old_dir
+			bmsg = sprintf("\033\13338;5;15m\033\13348;5;9m%s\033\133m", "Error: Path Not Exist")
+		    }
+		    else {
+			list = tmplist
+		    }
+		    menu_TUI_setup(list, delim)
+		    tmsg = dir;
+		    cursor = 1; curpage = (+curpage > +page ? page : curpage);
+		    break
+		}
 		if (answer ~ /:[^[:cntrl:]*]/) {
 		    if (isEmpty(selected)) {
 			bmsg = sprintf("\033\13338;5;15m\033\13348;5;9m%s\033\133m", "Error: Nothing Selected")
@@ -368,7 +427,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 			command = substr(answer, 2)
 			for (sel in selected) {
 			    # source rc file first to allow alias
-			    system("${SHELL:=/bin/sh} -c \". ~/.${SHELL##*/}rc && eval " command " " selected[sel] " & \"")
+			    system("${SHELL:=/bin/sh} -c \". ~/.${SHELL##*/}rc; eval " command " " selected[sel] " & \"")
 			}
 			empty_selected()
 		    }
@@ -395,26 +454,51 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 		break
 	    }
 
+	    if (answer == "\?") {
+		menu_TUI_setup(help, RS)
+		tmsg = ""; bmsg = "Helps"
+		cursor = 1; curpage = 1;
+		break
+	    }
+
+	    if (answer == "!") {
+		finale()
+		system("cd \"" dir "\" && ${SHELL:=/bin/sh}")
+		init()
+		break
+	    }
+
+	    if (answer == "-") {
+		if (old_dir == "") break
+		TMP = dir; dir = old_dir; old_dir = TMP;
+		list = gen_content(dir)
+		menu_TUI_setup(list, delim)
+		tmsg = dir; bmsg = "Browsing"
+		cursor = 1; curpage = (+curpage > +page ? page : curpage);
+		break
+	    }
+
 	    ########################
 	    #  Key: Total Redraw   #
 	    ########################
 
-	    if ( answer == "r" || (answer == "a" && actidx == 1) ||
+	    if ( answer == "r" ||
 	       ( answer ~ /^[[:digit:]]$/ && (+answer > +Narr || +answer < 1) ) ) {
 		menu_TUI_setup(list, delim)
 		tmsg = dir; bmsg = "Browsing"
-		cursor = 1; curpage = (+curpage > +page ? page : curpage); actidx = 0;
+		cursor = 1; curpage = (+curpage > +page ? page : curpage);
 		break
 	    }
-	    if ( answer == "\r" || answer == "l" || answer ~ /\[C/ ) { answer = Ncursor; break }
+	    if ( bmsg == "Helps" && (answer == "\r" || answer == "l" || answer ~ /\[C/) ) { continue }
+	    if ( bmsg != "Helps" && (answer == "\r" || answer == "l" || answer ~ /\[C/) ) { answer = Ncursor; break }
 	    if ( answer == "a" ) {
 		menu_TUI_setup(action, RS)
 		tmsg = ""; bmsg = "Actions"
-		cursor = 1; curpage = 1; actidx = 1;
+		cursor = 1; curpage = 1;
 		break
 	    }
 	    if ( answer == "q" ) exit
-	    if ( (answer == "h" || answer ~ /\[D/) && dir != "/" ) { answer = "../"; disp[answer] = "../"; break }
+	    if ( (answer == "h" || answer ~ /\[D/) && dir != "/" ) { answer = "../"; disp[answer] = "../"; bmsg = ""; break }
 	    if ( (answer == "h" || answer ~ /\[D/) && dir = "/" ) continue
 	    if ( (answer == "n" || answer ~ /\[6~/) && +curpage < +page ) { curpage++; break }
 	    if ( (answer == "n" || answer ~ /\[6~/) && +curpage == +page && cursor != Narr - dispnum*(curpage-1) ) { cursor = ( +curpage == +page ? Narr - dispnum*(curpage-1) : dispnum ); break }
@@ -437,6 +521,11 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	    if ( (answer == "k" || answer ~ /\[A/) && +cursor >= 1 ) { oldCursor = cursor; cursor--; }
 	    if ( answer == "g" ) { oldCursor = cursor; cursor = 1; }
 	    if ( answer == "G" ) { oldCursor = cursor; cursor = ( +curpage == +page ?  Narr - dispnum*(curpage-1) : dispnum ); }
+
+	    ####################
+	    #  Key: Selection  #
+	    ####################
+
 	    if ( answer == " " ) {
 		if (selected[Ncursor] == "") {
 		    TMP = disp[Ncursor]; gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", TMP)
@@ -468,14 +557,10 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 		    bmsg = "All selected"
 		}
 		else {
-		    for (sel = 1; sel in selected; sel++) {
-			delete selected[sel]
-			delete seldisp[sel]
-			delete selpage[sel]
-		    }
+		    empty_selected()
 		    bmsg = "All cancelled"
-		    break
 		}
+		break
 	    }
 
 	    if (answer == "s") {
@@ -521,8 +606,8 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	    CUP(top + cursor*num - num, 1);
 	    printf "%s\033\1337m%s\033\133m", Ncursor ". ", disp[Ncursor] > "/dev/stderr"
 
-	    if (bmsg !~ /Action.*/) draw_selected()
-	    if (bmsg !~ /Action.*/ && PREVIEW == 1) preview(disp[Ncursor])
+	    if (bmsg !~ /Action.*|Helps/) draw_selected()
+	    if (bmsg !~ /Action.*|Helps/ && PREVIEW == 1) preview(disp[Ncursor])
 
 	}
 
@@ -569,8 +654,6 @@ function preview(item) {
 		print prev[i] > "/dev/stderr"
 	    }
 	}
-
-
     }
 }
 
