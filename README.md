@@ -13,26 +13,28 @@ File manager written in awk
 
 ## Key bindings
 
-- k/↑ - up
-- j/↓ - down
-- l/→ - right
-- h/← - left
-- n/PageDown - PageDown
-- p/PageUp - PageUp
-- t/Home - go to first page
-- b/End - go to last page
-- g - go to first entry in current page
-- G - go to last entry in current page
-- r - refresh
-- ! - spawn shell
-- / - search
-- : - commandline mode
-- - - go to previous directory
-- ␣ - bulk (de-)selection
-- A - bulk (de-)selection all
-- a - actions
-- ? - show keybinds
-- q - quit
+```
+k/↑ - up
+j/↓ - down
+l/→ - right
+h/← - left
+n/PageDown - PageDown
+p/PageUp - PageUp
+t/Home - go to first page
+b/End - go to last page
+g - go to first entry in current page
+G - go to last entry in current page
+r - refresh
+! - spawn shell
+/ - search
+: - commandline mode
+- - go to previous directory
+␣ - bulk (de-)selection
+A - bulk (de-)selection all
+a - actions
+? - show keybinds
+q - quit
+```
 
 ## Actions
 
