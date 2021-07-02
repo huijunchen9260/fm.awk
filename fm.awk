@@ -23,6 +23,17 @@ BEGIN {
     dir = ( ENVIRON["PWD"] == "/" ? "/" : ENVIRON["PWD"] "/" )
     cursor = 1; curpage = 1;
 
+    # load alias
+    cmd = "${SHELL:=/bin/sh} -c \". ~/.${SHELL##*/}rc && alias\""
+    cmd | getline alias
+    close(cmd)
+    split(alias, aliasarr, "\n")
+    for (line in aliasarr) {
+        key = aliasarr[line]; gsub(/=.*/, "", key)
+	cmd = aliasarr[line]; gsub(/.*=/, "", cmd); gsub(/^'|'$/, "", cmd)
+	cmdalias[key] = cmd
+    }
+
     #############
     #  Actions  #
     #############
@@ -425,9 +436,9 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 		    }
 		    else {
 			command = substr(answer, 2)
+			if (command in cmdalias) command = cmdalias[command]
 			for (sel in selected) {
-			    # source rc file first to allow alias
-			    system("${SHELL:=/bin/sh} -c \". ~/.${SHELL##*/}rc; eval " command " " selected[sel] " & \"")
+			    system(command " \"" selected[sel] "\" &")
 			}
 			empty_selected()
 		    }
@@ -654,6 +665,7 @@ function preview(item) {
 		print prev[i] > "/dev/stderr"
 	    }
 	}
+
     }
 }
 
