@@ -1,4 +1,4 @@
-#!/usr/bin/mawk -f
+#!/usr/bin/awk -f
 
 BEGIN {
 
@@ -10,7 +10,6 @@ BEGIN {
     LASTPATH = ( ENVIRON["LASTPATH"] == "" ? ( ENVIRON["HOME"] "/.cache/lastpath" ) : ENVIRON["LASTPATH"] )
     HISTORY = ( ENVIRON["HISTORY"] == "" ? ( ENVIRON["HOME"] "/.cache/history" ) : ENVIRON["HISTORY"] )
     PREVIEW = 1
-    FILE_PREVIEW = 0
     RATIO = 0.35
     HIST_MAX = 5000
 
@@ -29,7 +28,7 @@ BEGIN {
     close(cmd)
     split(alias, aliasarr, "\n")
     for (line in aliasarr) {
-        key = aliasarr[line]; gsub(/=.*/, "", key)
+        key = aliasarr[line]; gsub(/=.*/, "", key); gsub(/^alias /, "", key)
 	cmd = aliasarr[line]; gsub(/.*=/, "", cmd); gsub(/^'|'$/, "", cmd)
 	cmdalias[key] = cmd
     }
@@ -43,7 +42,9 @@ BEGIN {
 	     "cp -R" RS \
 	     "ln -sf" RS \
 	     "rm -rf"
-    help = "k/↑ - up" RS \
+    help = "[num] - choose entries"  RS \
+	   "[num]+G - Go to page [num]" RS \
+	   "k/↑ - up" RS \
 	   "j/↓ - down" RS \
 	   "l/→ - right" RS \
 	   "h/← - left" RS \
@@ -60,6 +61,9 @@ BEGIN {
 	   "- - go to previous directory" RS \
 	   "␣ - bulk (de-)selection" RS \
 	   "A - bulk (de-)selection all " RS \
+	   "v - toggle preview" RS \
+	   "> - more directory ratio" RS \
+	   "< - less directory ratio" RS \
 	   "a - actions"
 	   "? - show keybinds" RS \
 	   "q - quit"
@@ -226,36 +230,36 @@ function gen_content(dir) {
 }
 
 # Credit: https://stackoverflow.com/a/20078022
-function isEmpty(arr, idx) { for (idx in arr) return 0; return 1 }
+function isEmpty(arr) { for (idx in arr) return 0; return 1 }
 
 ##################
 #  Start of TUI  #
 ##################
 
 function finale() {
-    printf "\033\1332J\033\133H" > "/dev/stderr" # clear screen
-    printf "\033\133?7h" > "/dev/stderr" # line wrap
-    printf "\033\1338" > "/dev/stderr" # restore cursor
-    printf "\033\133?25h" > "/dev/stderr" # hide cursor
-    printf "\033\133?1049l" > "/dev/stderr" # back from alternate buffer
+    printf "\033\1332J\033\133H" >> "/dev/stderr" # clear screen
+    printf "\033\133?7h" >> "/dev/stderr" # line wrap
+    printf "\033\1338" >> "/dev/stderr" # restore cursor
+    printf "\033\133?25h" >> "/dev/stderr" # hide cursor
+    printf "\033\133?1049l" >> "/dev/stderr" # back from alternate buffer
     system("stty icanon echo")
     ENVIRON["LANG"] = LANG; # restore LANG
 }
 
 function init() {
     system("stty -icanon -echo")
-    printf "\033\1332J\033\133H" > "/dev/stderr" # clear screen
-    printf "\033\133?1049h" > "/dev/stderr" # alternate buffer
-    printf "\033\1337" > "/dev/stderr" # save cursor
-    printf "\033\133?25l" > "/dev/stderr" # hide cursor
-    printf "\033\133?7l" > "/dev/stderr" # line wrap
+    printf "\033\1332J\033\133H" >> "/dev/stderr" # clear screen
+    printf "\033\133?1049h" >> "/dev/stderr" # alternate buffer
+    printf "\033\1337" >> "/dev/stderr" # save cursor
+    printf "\033\133?25l" >> "/dev/stderr" # hide cursor
+    printf "\033\133?7l" >> "/dev/stderr" # line wrap
     LANG = ENVIRON["LANG"]; # save LANG
     ENVIRON["LANG"] = C; # simplest locale setting
 }
 
 
 function CUP(lines, cols) {
-    printf("\033\133%s;%sH", lines, cols) > "/dev/stderr"
+    printf("\033\133%s;%sH", lines, cols) >> "/dev/stderr"
 }
 
 function draw_selected() {
@@ -263,17 +267,17 @@ function draw_selected() {
 	if (selpage[sel] == curpage) {
 	    CUP(top + (sel-dispnum*(curpage-1))*num - num, 1)
 	    for (i = 1; i <= num; i++) {
-		printf "\033\1332K" > "/dev/stderr" # clear line
+		printf "\033\1332K" >> "/dev/stderr" # clear line
 		CUP(top + cursor*num - num + i, 1)
 	    }
 	    CUP(top + (sel-dispnum*(curpage-1))*num - num, 1)
 	    gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", seldisp[sel])
 
 	    if (cursor == sel-dispnum*(curpage-1)) {
-		printf "  \033\1337;31m%s%s\033\133m", sel ". ", seldisp[sel] > "/dev/stderr"
+		printf "  \033\1337;31m%s%s\033\133m", sel ". ", seldisp[sel] >> "/dev/stderr"
 	    }
 	    else {
-		printf "  \033\1331;31m%s%s\033\133m", sel ". ", seldisp[sel] > "/dev/stderr"
+		printf "  \033\1331;31m%s%s\033\133m", sel ". ", seldisp[sel] >> "/dev/stderr"
 	    }
 	}
     }
@@ -287,7 +291,7 @@ function menu_TUI_setup(list, delim) {
     cmd | getline d
     close(cmd)
     split(d, dim, " ")
-    top = 5; bottom = dim[1] - 4;
+    top = 3; bottom = dim[1] - 4;
     fin = bottom - ( bottom - (top - 1) ) % num; end = fin + 1;
     dispnum = (end - top) / num
 
@@ -328,28 +332,29 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
     menu_TUI_setup(list, delim)
     while (answer !~ /^[[:digit:]]+$|\.\.\//) {
 
-	printf "\033\1332J\033\133H" > "/dev/stderr" # clear screen and move cursor to 0, 0
-	CUP(1, 1);
-	hud = "page: [n]ext, [p]rev, [r]efresh, [t]op, [b]ottom; entry: [h/k/j/l]-[←/↑/↓/→], [?]help, [q]uit"
-	gsub("[[]", "[\033\1331m", hud); gsub("[]]", "\033\133m]", hud)
-	printf hud > "/dev/stderr"
-	CUP(2, 1)
-	hline = sprintf("%" dim[2] "s", "")
-	gsub(/ /, "━", hline)
-	printf hline > "/dev/stderr"
-	CUP(top, 1); print pagearr[curpage] > "/dev/stderr"
+	printf "\033\1332J\033\133H" >> "/dev/stderr" # clear screen and move cursor to 0, 0
+	# CUP(1, 1);
+	# hud = "page: [n]ext, [p]rev, [r]efresh, [t]op, [b]ottom; entry: [h/k/j/l]-[←/↑/↓/→], [?]help, [q]uit"
+	# gsub("[[]", "[\033\1331m", hud); gsub("[]]", "\033\133m]", hud)
+	# printf hud >> "/dev/stderr"
+	# CUP(2, 1)
+	# hline = sprintf("%" dim[2] "s", "")
+	# gsub(/ /, "━", hline)
+	# printf hline >> "/dev/stderr"
+	CUP(top, 1); print pagearr[curpage] >> "/dev/stderr"
 
 	cursor = ( cursor+dispnum*(curpage-1) > Narr ? Narr - dispnum*(curpage-1) : cursor )
 	Ncursor = cursor+dispnum*(curpage-1)
-	CUP(top + cursor*num - num, 1); printf "%s\033\1337m%s\033\133m", Ncursor ". ", disp[Ncursor] > "/dev/stderr"
+	CUP(top + cursor*num - num, 1); printf "%s\033\1337m%s\033\133m", Ncursor ". ", disp[Ncursor] >> "/dev/stderr"
 
 	if (bmsg !~ /Action.*|Helps/) draw_selected()
 	if (bmsg !~ /Action.*|Helps/ && PREVIEW == 1) preview(disp[Ncursor])
 
-	CUP(3, 1); print tmsg disp[Ncursor] > "/dev/stderr"
-	CUP(dim[1] - 2, 1); print bmsg > "/dev/stderr"
+	# CUP(3, 1); print tmsg disp[Ncursor] >> "/dev/stderr"
+	CUP(top - 2, 1); print tmsg >> "/dev/stderr"
+	CUP(dim[1] - 2, 1); print bmsg >> "/dev/stderr"
 	CUP(dim[1], 1)
-	printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: ", Narr, curpage, page > "/dev/stderr"
+	printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: ", Narr, curpage, page >> "/dev/stderr"
 
 	while (1) {
 	    answer = ""
@@ -360,7 +365,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 		gsub(/[\\.^$(){}\[\]|*+?]/, "\\\\&", ans) # escape special char
 		answer = ( ans ~ /\033/ ? answer : answer ans )
 		if (answer ~ /^\\\[5$|^\\\[6$/) ans = ""; continue;
-	    } while (ans !~ /[[:space:][:alnum:]~\/:!?-]/ )
+	    } while (ans !~ /[[:space:][:alnum:]><~\/:!?-]/ )
 
 	    #######################################
 	    #  Key: entry choosing and searching  #
@@ -372,35 +377,20 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 		system("stty icanon echo -tabs")
 		CUP(dim[1], 1)
 		if (answer ~ /^[[:digit:]]$/) {
-		    printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: %s", Narr, curpage, page, answer > "/dev/stderr"
+		    printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: %s", Narr, curpage, page, answer >> "/dev/stderr"
 		}
 		else {
-		    printf "\033\1332K%s", answer > "/dev/stderr" # clear line
+		    printf "\033\1332K%s", answer >> "/dev/stderr" # clear line
 		}
-		printf "\033\133?25h" > "/dev/stderr" # show cursor
+		printf "\033\133?25h" >> "/dev/stderr" # show cursor
 		cmd = "read -r ans; echo \"$ans\" 2>/dev/null"
 		RS = "\n"; cmd | getline ans; RS = "\a"
 		close(cmd)
-		printf "\033\133?25l" > "/dev/stderr" # hide cursor
+		printf "\033\133?25l" >> "/dev/stderr" # hide cursor
 		system("stty -icanon -echo tabs")
 		answer = answer ans; ans = ""
 
-		if (answer ~ /:file preview$|:fp$/) {
-		    FILE_PREVIEW = (FILE_PREVIEW == 1 ? 0 : 1)
-		    answer = "";
-		    break;
-		}
-		if (answer ~ /:preview$|:p$/) {
-		    PREVIEW = (PREVIEW == 1 ? 0 : 1)
-		    answer = "";
-		    break;
-		}
-		if (answer ~ /:ratio ?= ?.*|:r ?= ?.*/) {
-		    gsub(/:ratio ?= ?|:r ?= ?/, "", answer)
-		    RATIO = answer;
-		    answer = "";
-		    break;
-		}
+		## cd
 		if (answer ~ /:cd .*/) {
 		    old_dir = dir
 		    gsub(/:cd /, "", answer)
@@ -430,6 +420,8 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 		    cursor = 1; curpage = (+curpage > +page ? page : curpage);
 		    break
 		}
+
+		## cmd mode
 		if (answer ~ /:[^[:cntrl:]*]/) {
 		    if (isEmpty(selected)) {
 			bmsg = sprintf("\033\13338;5;15m\033\13348;5;9m%s\033\133m", "Error: Nothing Selected")
@@ -447,13 +439,17 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 		    break
 		}
 
-
+		## search
 		if (answer ~ /\/[^[:cntrl:]*]/) {
 		    slist = search(list, delim, substr(answer, 2))
-		    if (slist != "") menu_TUI_setup(slist, delim)
+		    if (slist != "") {
+			menu_TUI_setup(slist, delim)
+			cursor = 1; curpage = 1;
+		    }
 		    break
 		}
 
+		## go to page
 		if ( (answer ~ /[[:digit:]]+G/) ) {
 		    ans = answer; gsub(/G/, "", ans);
 		    curpage = (+ans <= +page ? ans : page)
@@ -465,9 +461,9 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 		break
 	    }
 
-	    if (answer == "\?") {
+	    if (answer ~ /[?]/) {
 		menu_TUI_setup(help, RS)
-		tmsg = ""; bmsg = "Helps"
+		tmsg = "Key bindings"; bmsg = "Helps"
 		cursor = 1; curpage = 1;
 		break
 	    }
@@ -489,10 +485,14 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 		break
 	    }
 
+
 	    ########################
 	    #  Key: Total Redraw   #
 	    ########################
 
+	    if ( answer == "v" ) { PREVIEW = (PREVIEW == 1 ? 0 : 1); break }
+	    if ( answer == ">" ) { RATIO = (RATIO > 0.8 ? RATIO : RATIO + 0.05); break }
+	    if ( answer == "<" ) { RATIO = (RATIO < 0.2 ? RATIO : RATIO - 0.05); break }
 	    if ( answer == "r" ||
 	       ( answer ~ /^[[:digit:]]$/ && (+answer > +Narr || +answer < 1) ) ) {
 		menu_TUI_setup(list, delim)
@@ -504,7 +504,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	    if ( bmsg != "Helps" && (answer == "\r" || answer == "l" || answer ~ /\[C/) ) { answer = Ncursor; break }
 	    if ( answer == "a" ) {
 		menu_TUI_setup(action, RS)
-		tmsg = ""; bmsg = "Actions"
+		tmsg = "Choose an action"; bmsg = "Actions"
 		cursor = 1; curpage = 1;
 		break
 	    }
@@ -593,29 +593,29 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 	    if (Ncursor > Narr) { Ncursor = Narr; cursor = Narr - dispnum*(curpage-1); continue }
 	    if (Ncursor < 1) { Ncursor = 1; cursor = 1; continue }
 
-	    CUP(3, 1); # tmsg
-	    printf "\033\1332K" > "/dev/stderr" # clear line
-	    print tmsg disp[Ncursor] > "/dev/stderr"
+	    # CUP(3, 1); # tmsg
+	    # printf "\033\1332K" >> "/dev/stderr" # clear line
+	    # print tmsg disp[Ncursor] >> "/dev/stderr"
 
 	    CUP(dim[1] - 2, 1); # bmsg
-	    printf "\033\1332K" > "/dev/stderr" # clear line
-	    print bmsg > "/dev/stderr"
+	    printf "\033\1332K" >> "/dev/stderr" # clear line
+	    print bmsg >> "/dev/stderr"
 
 	    CUP(top + oldCursor*num - num, 1); # old entry
 	    for (i = 1; i <= num; i++) {
-		printf "\033\1332K" > "/dev/stderr" # clear line
+		printf "\033\1332K" >> "/dev/stderr" # clear line
 		CUP(top + oldCursor*num - num + i, 1)
 	    }
 	    CUP(top + oldCursor*num - num, 1);
-	    printf "%s", oldNcursor ". " disp[oldNcursor] > "/dev/stderr"
+	    printf "%s", oldNcursor ". " disp[oldNcursor] >> "/dev/stderr"
 
 	    CUP(top + cursor*num - num, 1); # new entry
 	    for (i = 1; i <= num; i++) {
-		printf "\033\1332K" > "/dev/stderr" # clear line
+		printf "\033\1332K" >> "/dev/stderr" # clear line
 		CUP(top + cursor*num - num + i, 1)
 	    }
 	    CUP(top + cursor*num - num, 1);
-	    printf "%s\033\1337m%s\033\133m", Ncursor ". ", disp[Ncursor] > "/dev/stderr"
+	    printf "%s\033\1337m%s\033\133m", Ncursor ". ", disp[Ncursor] >> "/dev/stderr"
 
 	    if (bmsg !~ /Action.*|Helps/) draw_selected()
 	    if (bmsg !~ /Action.*|Helps/ && PREVIEW == 1) preview(disp[Ncursor])
@@ -633,7 +633,7 @@ function preview(item) {
     border = int(dim[2]*RATIO)
     for (i = top; i <= end; i++) {
         CUP(i, border - 1)
-	printf "\033\133K" > "/dev/stderr" # clear line
+	printf "\033\133K" >> "/dev/stderr" # clear line
     }
 
     gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", item)
@@ -643,29 +643,44 @@ function preview(item) {
 	split(content, prev, "\f")
 	for (i = 1; i <= ((end - top) / num); i++) {
 	    CUP(top + i - 1, border + 1)
-	    print prev[i] > "/dev/stderr"
+	    print prev[i] >> "/dev/stderr"
 	}
     }
-    else if (FILE_PREVIEW == 1) {
-
-	cmd = "file -i \"" path "\""
-	cmd | getline type
-	close(cmd)
-	match(type, "binary")
-	if (RSTART) {
-	    CUP(top, border + 1)
-	    printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "binary" > "/dev/stderr"
+    else if (path ~ /.*\.bmp|.*\.jpg|.*\.jpeg|.*\.png|.*\.xpm|.*\.webp|.*\.gif/) {
+	CUP(top, border + 1)
+	if (path ~ /.*\.gif/) {
+	    printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "image" >> "/dev/stderr"
 	}
 	else {
-	    getline content < path
-	    close(path)
-	    split(content, prev, "\n")
+	    # printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "image" >> "/dev/stderr"
+
+	    cmd = "chafa -s " 2.5*((end - top) / num) "x \"" path "\""
+	    cmd | getline fig
+	    close(cmd)
+	    split(fig, prev, "\n")
 	    for (i = 1; i <= ((end - top) / num); i++) {
 		CUP(top + i - 1, border + 1)
-		print prev[i] > "/dev/stderr"
+		print prev[i] >> "/dev/stderr"
 	    }
 	}
-
+    }
+    else if (path ~ /.*\.avi|.*\.mp4|.*\.wmv|.*\.dat|.*\.3gp|.*\.ogv|.*\.mkv|.*\.mpg|.*\.mpeg|.*\.vob|.*\.fl[icv]|.*\.m2v|.*\.mov|.*\.webm|.*\.ts|.*\.mts|.*\.m4v|.*\.r[am]|.*\.qt|.*\.divx/) {
+	CUP(top, border + 1)
+	printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "video" >> "/dev/stderr"
+    }
+    else {
+	getline content < path
+	close(path)
+	split(content, prev, "\n")
+	for (i = 1; i <= ((end - top) / num); i++) {
+	    CUP(top + i - 1, border + 1)
+	    code = gsub(/[[:cntrl:]]/, "", prev[i])
+	    if (code > 0) {
+		printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "binary" >> "/dev/stderr"
+		break
+	    }
+	    print prev[i] >> "/dev/stderr"
+	}
     }
 }
 
@@ -675,11 +690,11 @@ function notify(msg, str) {
     RS = "\n" # stop getline by enter
     print msg
     system("stty icanon echo")
-    printf "\033\133?25h" > "/dev/stderr" # show cursor
+    printf "\033\133?25h" >> "/dev/stderr" # show cursor
     cmd = "read -r ans; echo \"$ans\""
     cmd | getline str
     close(cmd)
-    printf "\033\133?25l" > "/dev/stderr" # hide cursor
+    printf "\033\133?25l" >> "/dev/stderr" # hide cursor
     RS = "\a"
     system("stty -icanon -echo")
     return str
