@@ -31,6 +31,9 @@ r - refresh
 - - go to previous directory
 ␣ - bulk (de-)selection
 A - bulk (de-)selection all
+v - toggle preview
+> - more directory ratio
+< - less directory ratio
 a - actions
 ? - show keybinds
 q - quit
@@ -75,4 +78,4 @@ edit `fm.awk`, modify the first configuration section:
 
 ## TODO
 
-- [ ] Image preview (help needed)
+- [ ] Image preview (now only chafa)
