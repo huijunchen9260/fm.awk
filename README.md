@@ -11,6 +11,7 @@ File manager written in awk
 - cd on exit: `cd $(command fm.awk)`
 - last path: `export LASTPATH="$HOME/.cache/lastpath"; cd $(cat -u $LASTPATH) && $TERMINAL -e fm.awk`
 
+
 ## Key bindings
 
 ```
@@ -64,7 +65,6 @@ edit `fm.awk`, modify the first configuration section:
     LASTPATH = ( ENVIRON["LASTPATH"] == "" ? ( ENVIRON["HOME"] "/.cache/lastpath" ) : ENVIRON["LASTPATH"] )
     HISTORY = ( ENVIRON["HISTORY"] == "" ? ( ENVIRON["HOME"] "/.cache/history" ) : ENVIRON["HISTORY"] )
     PREVIEW = 1
-    FILE_PREVIEW = 0
     RATIO = 0.35
 ```
 
@@ -74,7 +74,10 @@ edit `fm.awk`, modify the first configuration section:
     - can be relative: `:cd ../../` goes to parents two tiers
 - `:cmd ` on each selected item.
     - e.g., After selection, `:chmod +x` to give execution permission on selected entries.
+- `:cmd {} destination` to replace `{}` with each selected item and execute the whole command.
+    - e.g., After selection, `:mv {} ~` will move selected item to `$HOME` directory.
 - `cmd` can be shell alias (`bash` and `zsh` confirmed. `fish` not sure).
+- tab completion on `:cd ` and search (`/`)
 
 ## TODO
 
