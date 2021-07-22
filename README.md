@@ -11,7 +11,6 @@ File manager written in awk
 - cd on exit: `cd $(command fm.awk)`
 - last path: `export LASTPATH="$HOME/.cache/lastpath"; cd $(cat -u $LASTPATH) && $TERMINAL -e fm.awk`
 
-
 ## Key bindings
 
 ```
@@ -68,7 +67,7 @@ edit `fm.awk`, modify the first configuration section:
     RATIO = 0.35
 ```
 
-## Commandline mode
+## cmd mode
 
 - `:cd /path/to/destination`
     - can be relative: `:cd ../../` goes to parents two tiers
@@ -78,6 +77,7 @@ edit `fm.awk`, modify the first configuration section:
     - e.g., After selection, `:mv {} ~` will move selected item to `$HOME` directory.
 - `cmd` can be shell alias (`bash` and `zsh` confirmed. `fish` not sure).
 - tab completion on `:cd ` and search (`/`)
+- left / right arrow to move cursor
 
 ## TODO
 

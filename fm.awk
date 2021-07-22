@@ -259,6 +259,7 @@ function init() {
     printf "\033\133?1049h" >> "/dev/stderr" # alternate buffer
     printf "\033\1337" >> "/dev/stderr" # save cursor
     printf "\033\133?25l" >> "/dev/stderr" # hide cursor
+    printf "\033\1335 q" >> "/dev/stderr" # blinking bar
     printf "\033\133?7l" >> "/dev/stderr" # line wrap
     LANG = ENVIRON["LANG"]; # save LANG
     ENVIRON["LANG"] = C; # simplest locale setting
@@ -354,6 +355,88 @@ function key_collect() {
     return key
 }
 
+function cmd_mode() {
+
+    while (key = key_collect()) {
+        if (key == "\003" || key == "\n") {
+            if (key == "\003") { reply = "\003"; }
+            split("", comparr, ":")
+            break;
+        }
+        if (key == "\177") {
+            reply = substr(reply, 1, length(reply) + cc - 1) substr(reply, length(reply) + cc + 1);
+            split("", comparr, ":")
+        }
+        # cd
+        else if (answer reply == ":cd " && key == "~") { reply = reply ENVIRON["HOME"] "/" }
+        else if (answer reply ~ /:cd .*/ && key ~ /\t|\[Z/) { # Tab / Shift-Tab
+            cc = 0
+            if (isEmpty(comparr)) {
+                comp = reply; gsub(/cd /, "", comp)
+                compdir = comp;
+                if (compdir ~ /^\.\.\/.*/) {
+                    tmpdir = dir
+                    while (compdir ~ /^\.\.\/.*/) { # relative path
+                        gsub(/[^\/]*\/?$/, "", tmpdir)
+                        gsub(/^\.\.\//, "", compdir)
+                        tmpdir = ( tmpdir == "" ? "/" : tmpdir )
+                    }
+                    compdir = tmpdir
+                }
+                else {
+                    gsub(/[^\/]*\/?$/, "", compdir); gsub(compdir, "", comp)
+                }
+                compdir = (compdir == "" ? dir : compdir);
+                list = gen_content(compdir)
+                gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", list)
+                complist = search(list, delim, comp, "dir")
+                Ncomp = split(complist, comparr, delim)
+                c = ( key == "\t" ? 1 : Ncomp )
+            }
+            else {
+                if (key == "\t") c = (c == Ncomp ? 1 : c + 1)
+                else c = (c == 1 ? Ncomp : c - 1)
+            }
+            reply = "cd " compdir comparr[c]
+        }
+        # search
+        else if (answer == "/" && key ~ /\t|\[Z/) {
+            cc = 0
+            if (isEmpty(comparr)) {
+                comp = reply; complist = search(list, delim, comp, "")
+                gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", complist)
+                Ncomp = split(complist, comparr, delim)
+                c = ( key == "\t" ? 1 : Ncomp )
+            }
+            else {
+                if (key == "\t") c = (c == Ncomp ? 1 : c + 1)
+                else c = (c == 1 ? Ncomp : c - 1)
+            }
+            reply = comparr[c]
+        }
+        else if (key ~ /\[D|\[C/) { # Left / Right arrow
+            if (-cc < length(reply) && key ~ /\[D/) { cc-- }
+            if (cc < 0 && key ~ /\[C/) { cc++ }
+        }
+        else if (key ~ /\[.+/) {
+            continue
+        }
+        else {
+            reply = substr(reply, 1, length(reply) + cc) key substr(reply, length(reply) + cc + 1);
+            split("", comparr, ":")
+        }
+        CUP(dim[1], 1)
+        status = sprintf("\033\1332K%s%s", answer, reply)
+        printf(status) >> "/dev/stderr" # clear line
+        if (cc < 0) { CUP(dim[1], length(status) + cc - 3) } # adjust cursor
+    }
+
+    printf "\033\133?25l" >> "/dev/stderr" # hide cursor
+    if (reply == "\003") { answer = ""; key = ""; reply = ""; break; }
+    answer = answer reply; reply = ""; split("", comparr, ":"); cc = 0
+
+}
+
 function menu_TUI(list, delim, num, tmsg, bmsg) {
 
     menu_TUI_page(list, delim)
@@ -399,72 +482,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                 # system("stty -icanon -echo tabs")
                 # answer = answer ans; ans = ""
 
-                while (key = key_collect()) {
-                    if (key == "\003") { reply = "\003"; break; }
-                    if (key == "\n") { break; }
-                    if (key == "\177") {
-                        reply = substr(reply, 1, length(reply)-1);
-                        split("", comparr, ":")
-                    }
-                    # cd
-                    else if (answer reply == ":cd " && key == "~") { reply = reply ENVIRON["HOME"] "/" }
-                    else if (answer reply ~ /:cd .*/ && key ~ /\t|\[Z/) { # Tab / Shift-Tab
-                        if (isEmpty(comparr)) {
-                            comp = reply; gsub(/cd /, "", comp)
-                            compdir = comp;
-                            if (compdir ~ /^\.\.\/.*/) {
-                                tmpdir = dir
-                                while (compdir ~ /^\.\.\/.*/) { # relative path
-                                    gsub(/[^\/]*\/?$/, "", tmpdir)
-                                    gsub(/^\.\.\//, "", compdir)
-                                    tmpdir = ( tmpdir == "" ? "/" : tmpdir )
-                                }
-                                compdir = tmpdir
-                            }
-                            else {
-                                gsub(/[^\/]*\/?$/, "", compdir); gsub(compdir, "", comp)
-                            }
-                            compdir = (compdir == "" ? dir : compdir);
-                            list = gen_content(compdir)
-                            gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", list)
-                            complist = search(list, delim, comp, "dir")
-                            Ncomp = split(complist, comparr, delim)
-                            c = ( key == "\t" ? 1 : Ncomp )
-                        }
-                        else {
-                            if (key == "\t") c = (c == Ncomp ? c : c + 1)
-                            else c = (c == 1 ? c : c - 1)
-                        }
-                        reply = "cd " compdir comparr[c]
-                    }
-                    # search
-                    else if (answer == "/" && key ~ /\t|\[Z/) {
-                        if (isEmpty(comparr)) {
-                            comp = reply; complist = search(list, delim, comp, "")
-                            gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", complist)
-                            Ncomp = split(complist, comparr, delim)
-                            c = ( key == "\t" ? 1 : Ncomp )
-                        }
-                        else {
-                            if (key == "\t") c = (c == Ncomp ? c : c + 1)
-                            else c = (c == 1 ? c : c - 1)
-                        }
-                        reply = comparr[c]
-                    }
-                    # else if (key !~ /\[.*/) {
-                    else {
-                        reply = reply key;
-                        split("", comparr, ":")
-                    }
-                    CUP(dim[1], 1)
-                    printf "\033\1332K%s%s", answer, reply >> "/dev/stderr" # clear line
-                }
-
-                printf "\033\133?25l" >> "/dev/stderr" # hide cursor
-                if (reply == "\003") { break; }
-                answer = answer reply; reply = ""; split("", comparr, ":")
-
-
+                cmd_mode()
 
                 ## cd
                 if (answer ~ /:cd .*/) {
@@ -595,7 +613,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                cursor = 1; curpage = 1;
                break
            }
-           if ( answer == "q" ) exit
+           if ( answer ~ /q|\003/ ) exit
            if ( (answer == "h" || answer ~ /\[D/) && dir != "/" ) { answer = "../"; disp[answer] = "../"; bmsg = ""; break }
            if ( (answer == "h" || answer ~ /\[D/) && dir = "/" ) continue
            if ( (answer == "n" || answer ~ /\[6~/) && +curpage < +page ) { curpage++; break }
