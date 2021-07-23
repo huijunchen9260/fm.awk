@@ -431,10 +431,6 @@ function cmd_mode() {
         if (cc < 0) { CUP(dim[1], length(status) + cc - 3) } # adjust cursor
     }
 
-    printf "\033\133?25l" >> "/dev/stderr" # hide cursor
-    if (reply == "\003") { answer = ""; key = ""; reply = ""; break; }
-    answer = answer reply; reply = ""; split("", comparr, ":"); cc = 0
-
 }
 
 function menu_TUI(list, delim, num, tmsg, bmsg) {
@@ -483,6 +479,11 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                 # answer = answer ans; ans = ""
 
                 cmd_mode()
+
+                printf "\033\133?25l" >> "/dev/stderr" # hide cursor
+                if (reply == "\003") { answer = ""; key = ""; reply = ""; break; }
+                answer = answer reply; reply = ""; split("", comparr, ":"); cc = 0
+
 
                 ## cd
                 if (answer ~ /:cd .*/) {

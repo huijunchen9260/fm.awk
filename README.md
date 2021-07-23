@@ -4,7 +4,7 @@ File manager written in awk
 
 ## Preview
 
-[![asciicast](https://asciinema.org/a/jKftvrAUWtlXK17Nrh0sgAC82.svg)](https://asciinema.org/a/jKftvrAUWtlXK17Nrh0sgAC82)
+[![asciicast](https://asciinema.org/a/9YDmY7GhnV7ku2yRhGJlQa8l4.svg)](https://asciinema.org/a/9YDmY7GhnV7ku2yRhGJlQa8l4)
 
 ## Browsing
 
