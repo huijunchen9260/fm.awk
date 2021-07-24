@@ -63,9 +63,19 @@ edit `fm.awk`, modify the first configuration section:
     OPENER = ( ENVIRON["OSTYPE"] ~ /darwin.*/ ? "open" : "xdg-open" )
     LASTPATH = ( ENVIRON["LASTPATH"] == "" ? ( ENVIRON["HOME"] "/.cache/lastpath" ) : ENVIRON["LASTPATH"] )
     HISTORY = ( ENVIRON["HISTORY"] == "" ? ( ENVIRON["HOME"] "/.cache/history" ) : ENVIRON["HISTORY"] )
-    PREVIEW = 1
+    CMDHIST = ( ENVIRON["CMDHIST"] == "" ? ( ENVIRON["HOME"] "/.cache/cmdhist" ) : ENVIRON["CMDHIST"] )
+    PREVIEW = 0
     RATIO = 0.35
+    HIST_MAX = 5000
 ```
+
+- `OPENER` is the default file opener.
+- `LASTPATH` is path which `fm.awk` were last time.
+- `HISTORY` is the history for directory visited.
+- `CMDHIST` is the command line history, which only the unique command will be left.
+- `PREVIEW` is a boolean value which toggles preview or not.
+- `RATIO` is the ratio for directory / preview.
+- `HIST_MAX` is the maximum number of `HISTORY`.
 
 ## cmd mode
 
@@ -77,7 +87,8 @@ edit `fm.awk`, modify the first configuration section:
     - e.g., After selection, `:mv {} ~` will move selected item to `$HOME` directory.
 - `cmd` can be shell alias (`bash` and `zsh` confirmed. `fish` not sure).
 - tab completion on `:cd ` and search (`/`)
-- left / right arrow to move cursor
+- tab completion on command line mode based on command line history.
+- left / right arrow to move cursor; up / down arrow to access command line history.
 
 ## TODO
 

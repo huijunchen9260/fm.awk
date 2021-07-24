@@ -9,6 +9,7 @@ BEGIN {
     OPENER = ( ENVIRON["OSTYPE"] ~ /darwin.*/ ? "open" : "xdg-open" )
     LASTPATH = ( ENVIRON["LASTPATH"] == "" ? ( ENVIRON["HOME"] "/.cache/lastpath" ) : ENVIRON["LASTPATH"] )
     HISTORY = ( ENVIRON["HISTORY"] == "" ? ( ENVIRON["HOME"] "/.cache/history" ) : ENVIRON["HISTORY"] )
+    CMDHIST = ( ENVIRON["CMDHIST"] == "" ? ( ENVIRON["HOME"] "/.cache/cmdhist" ) : ENVIRON["CMDHIST"] )
     PREVIEW = 0
     RATIO = 0.35
     HIST_MAX = 5000
@@ -74,6 +75,7 @@ BEGIN {
 END {
     finale();
     hist_clean();
+    cmd_clean();
     if (list != "empty") {
         printf("%s", dir) > "/dev/stdout"; close("/dev/stdout")
         printf("%s", dir) > LASTPATH; close(LASTPATH)
@@ -187,6 +189,20 @@ function hist_act() {
     list = substr(list, 3)
     list = list "\n../"; delim = "\n"; num = 1; tmsg = "Choose history: "; bmsg = "Action: " response; hist = 1;
     menu_TUI(list, delim, num, tmsg, bmsg)
+}
+
+function cmd_clean() { # act like uniq
+    tmp = "";
+    getline cmdhist < CMDHIST; close(CMDHIST);
+    N = split(cmdhist, cmdarr, "\n")
+    for (i = 1; i in cmdarr; i++) {
+        if (! (cmdarr[i] in seen)) { seen[cmdarr[i]]++ }
+    }
+    for (key in seen) {
+        if (key != "") { tmp = tmp "\n" key }
+    }
+    tmp = substr(tmp, 2)
+    printf("%s", tmp) > CMDHIST; close(CMDHIST)
 }
 
 
@@ -348,10 +364,10 @@ function key_collect() {
         ans = substr(record, 1, 1)
         match(record, /[0-9.]* kB\/s/)
         sec = substr(record, RSTART, RLENGTH-4)
-        gsub(/[\\^$()\[\]|*+?]/, "\\\\&", ans) # escape special char
+        gsub(/[\\^$()\[\]"|]/, "\\\\&", ans) # escape special char
         key = ( ans ~ /\033/ ? key : key ans )
         if (key ~ /^\\\[5$|^\\\[6$$/) ans = ""; continue;
-    } while (ans !~ /[\003\177[:space:][:alnum:]><\}\{.~\/:!?-]/ )
+    } while (ans !~ /[\003\177[:space:][:alnum:]><\}\{.~\/:!?*+-]|\\"/ )
     return key
 }
 
@@ -370,7 +386,7 @@ function cmd_mode() {
         # cd
         else if (answer reply == ":cd " && key == "~") { reply = reply ENVIRON["HOME"] "/" }
         else if (answer reply ~ /:cd .*/ && key ~ /\t|\[Z/) { # Tab / Shift-Tab
-            cc = 0
+            cc = 0; dd = 0;
             if (isEmpty(comparr)) {
                 comp = reply; gsub(/cd /, "", comp)
                 compdir = comp;
@@ -387,9 +403,9 @@ function cmd_mode() {
                     gsub(/[^\/]*\/?$/, "", compdir); gsub(compdir, "", comp)
                 }
                 compdir = (compdir == "" ? dir : compdir);
-                list = gen_content(compdir)
-                gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", list)
-                complist = search(list, delim, comp, "dir")
+                tmplist = gen_content(compdir)
+                gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", tmplist)
+                complist = search(tmplist, delim, comp, "dir")
                 Ncomp = split(complist, comparr, delim)
                 c = ( key == "\t" ? 1 : Ncomp )
             }
@@ -399,10 +415,32 @@ function cmd_mode() {
             }
             reply = "cd " compdir comparr[c]
         }
+        # command completion
+        else if (answer == ":" && key ~ /\t|\[Z/) {
+            if (isEmpty(comparr)) {
+                getline cmdhist < CMDHIST; close(CMDHIST);
+                comp = reply; complist = search(cmdhist, "\n", comp, "")
+                Ncomp = split(complist, comparr, "\n")
+                c = ( key == "\t" ? 1 : Ncomp )
+            }
+            else {
+                if (key == "\t") c = (c == Ncomp ? 1 : c + 1)
+                else c = (c == 1 ? Ncomp : c - 1)
+            }
+            reply = comparr[c]
+        }
+        else if (answer == ":" && key ~ /\[A|\[B/) {
+            getline cmdhist < CMDHIST; close(CMDHIST);
+            Ncmd = split(cmdhist, cmdarr, "\n")
+            reply = cmdarr[Ncmd - dd]
+            if (key ~ /\[A/) { dd = (dd < Ncmd - 1 ? dd + 1 : dd) }
+            if (key ~ /\[B/) { dd = (dd == 0 ? dd : dd - 1) }
+        }
         # search
         else if (answer == "/" && key ~ /\t|\[Z/) {
-            cc = 0
+            cc = 0; dd = 0;
             if (isEmpty(comparr)) {
+                list = gen_content(dir)
                 comp = reply; complist = search(list, delim, comp, "")
                 gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", complist)
                 Ncomp = split(complist, comparr, delim)
@@ -482,8 +520,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
                 printf "\033\133?25l" >> "/dev/stderr" # hide cursor
                 if (reply == "\003") { answer = ""; key = ""; reply = ""; break; }
-                answer = answer reply; reply = ""; split("", comparr, ":"); cc = 0
-
+                answer = answer reply; reply = ""; split("", comparr, ":"); cc = 0; dd = 0;
 
                 ## cd
                 if (answer ~ /:cd .*/) {
@@ -526,15 +563,15 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                     if (command in cmdalias) command = cmdalias[command]
 
                     if (isEmpty(selected)) {
-                        system("cd \"" dir "\" && " command " 2>/dev/null &")
+                        system("cd \"" dir "\" && eval \"" command "\" 2>/dev/null &")
                     }
                     else {
                         for (sel in selected) {
                             if (RSTART) {
-                                system("cd \"" dir "\" && " command " \"" selected[sel] "\" " post " 2>/dev/null &")
+                                system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\"\" " post " 2>/dev/null &")
                             }
                             else {
-                                system("cd \"" dir "\" && " command " \"" selected[sel] "\" 2>/dev/null &")
+                                system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\"\" 2>/dev/null &")
                             }
                         }
                         empty_selected()
@@ -542,6 +579,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
                     list = gen_content(dir)
                     menu_TUI_page(list, delim)
+                    printf("\n%s", command) >> CMDHIST; close(CMDHIST)
                     break
                 }
 
@@ -551,6 +589,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                     if (slist != "") {
                         menu_TUI_page(slist, delim)
                         cursor = 1; curpage = 1;
+                        if (+Narr == +1) { answer = 1 }
                     }
                     break
                 }
@@ -577,6 +616,8 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                 finale()
                 system("cd \"" dir "\" && ${SHELL:=/bin/sh}")
                 init()
+                list = gen_content(dir)
+                menu_TUI_page(list, delim)
                 break
             }
 
