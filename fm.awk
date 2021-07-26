@@ -356,14 +356,19 @@ function search(list, delim, str, mode) {
 }
 
 function key_collect() {
-    key = ""
+    key = ""; rep = 0
     do {
+        # cmd = "dd ibs=1 count=1 2>/dev/null"
+        # cmd | getline ans;
+        # close(cmd)
         cmd = "dd ibs=1 count=1 2>&1"
         cmd | getline record;
         close(cmd)
         ans = substr(record, 1, 1)
-        match(record, /[0-9.]* kB\/s/)
-        sec = substr(record, RSTART, RLENGTH-4)
+        if (++rep == 1) {
+            match(record, /[0-9.]* kB\/s/)
+            sec = substr(record, RSTART, RLENGTH-4)
+        }
         gsub(/[\\^$()\[\]"|]/, "\\\\&", ans) # escape special char
         key = ( ans ~ /\033/ ? key : key ans )
         if (key ~ /^\\\[5$|^\\\[6$$/) ans = ""; continue;
