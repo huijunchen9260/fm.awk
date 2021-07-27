@@ -1,5 +1,4 @@
 #!/usr/bin/awk -f
-
 BEGIN {
 
     ###################
@@ -84,7 +83,6 @@ END {
         printf("%s", dir) > "/dev/stdout"; close("/dev/stdout")
         printf("%s", dir) > LASTPATH; close(LASTPATH)
     }
-    print "\n"
 }
 
 function main() {
