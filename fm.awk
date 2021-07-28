@@ -1,4 +1,5 @@
 #!/usr/bin/awk -f
+
 BEGIN {
 
     ###################
@@ -198,16 +199,30 @@ function cmd_clean() { # act like uniq
     tmp = "";
     getline cmdhist < CMDHIST; close(CMDHIST);
     N = split(cmdhist, cmdarr, "\n")
-    for (i = 1; i in cmdarr; i++) {
+    for (i = 1; i in cmdarr; i++) { # collect items not seen
         if (! (cmdarr[i] in seen)) { seen[cmdarr[i]]++ }
     }
-    for (key in seen) {
+    for (key in seen) { # expand seen array into string
         if (key != "") { tmp = tmp "\n" key }
     }
     tmp = substr(tmp, 2)
     printf("%s", tmp) > CMDHIST; close(CMDHIST)
 }
 
+
+# function hist_clean() { # act like uniq
+#     tmp = "";
+#     getline cmdhist < HISTORY; close(HISTORY);
+#     N = split(cmdhist, cmdarr, "\n")
+#     for (i = 1; i in cmdarr; i++) { # collect items not seen
+#         if (! (cmdarr[i] in seen)) { seen[cmdarr[i]]++ }
+#     }
+#     for (key in seen) { # expand seen array into string
+#         if (key != "") { tmp = tmp "\n" key }
+#     }
+#     # tmp = substr(tmp, 2)
+#     printf("%s", tmp) > HISTORY; close(HISTORY)
+# }
 
 function hist_clean() {
     getline hisfile < HISTORY; close(HISTORY);
@@ -342,16 +357,20 @@ function menu_TUI_page(list, delim) {
 function search(list, delim, str, mode) {
     find = ""; str = tolower(str);
     if (mode == "dir") {
-        regex = str ".*/";
+        regex = str ".*/"
     }
     else {
-        regex = ".*" str ".*";
+        regex = ".*" str ".*"
     }
-    Narr = split(list, sdisp, delim)
 
-    for (entry = 1; entry in sdisp; entry++) {
-        match(tolower(sdisp[entry]), regex)
-        if (RSTART) find = find delim sdisp[entry]
+    # get rid of coloring to avoid find irrelevant item
+    tmplist = list
+    gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", tmplist)
+    Narr = split(list, sdisp, delim); split(tmplist, tmpsdisp, delim)
+
+    for (entry = 1; entry in tmpsdisp; entry++) {
+        match(tolower(tmpsdisp[entry]), regex)
+        if (RSTART) { find = find delim sdisp[entry]; }
     }
 
     slist = substr(find, 2)
@@ -448,7 +467,7 @@ function cmd_mode() {
         else if (answer == "/" && key ~ /\t|\[Z/) {
             cc = 0; dd = 0;
             if (isEmpty(comparr)) {
-                list = gen_content(dir)
+                # list = gen_content(dir)
                 comp = reply; complist = search(list, delim, comp, "")
                 gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", complist)
                 Ncomp = split(complist, comparr, delim)
