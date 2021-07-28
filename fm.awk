@@ -1,5 +1,4 @@
 #!/usr/bin/awk -f
-
 BEGIN {
 
     ###################
@@ -33,6 +32,10 @@ BEGIN {
         cmd = aliasarr[line]; gsub(/.*=/, "", cmd); gsub(/^'|'$/, "", cmd)
         cmdalias[key] = cmd
     }
+    # Check dependencies
+    DEP_CHAFA    = program_exists("chafa")               #Check for chafa for general image display.
+    DEP_PDFTOPPM = program_exists("pdftoppm")            #Check for pdftoppm for PDF previews.
+    DEP_FFMPEGTH = program_exists("ffmpegthumbnailer")   #Check for ffmpegthumbnailer for video previews.
 
     #############
     #  Actions  #
@@ -793,24 +796,10 @@ function draw_preview(item) {
             print prev[i] >> "/dev/stderr"
         }
     }
-    else if (path ~ /.*\.pdf/) {
+    else if (path ~ /.*\.pdf/) { # Preview PDF file.
         CUP(top, border + 1)
-        cmd = "pdftoppm -jpeg -f 1 -singlefile \"" path "\" 2>/dev/null | chafa -s " 2.5*((end - top) / num) "x \"-\" 2>/dev/null"
-        cmd | getline fig
-        close(cmd)
-        split(fig, prev, "\n")
-        for (i = 1; i <= ((end - top) / num); i++) {
-            CUP(top + i - 1, border + 1)
-            print prev[i] >> "/dev/stderr"
-        }
-    }
-    else if (path ~ /.*\.bmp|.*\.jpg|.*\.jpeg|.*\.png|.*\.xpm|.*\.webp|.*\.gif/) {
-        CUP(top, border + 1)
-        if (path ~ /.*\.gif/) {
-            printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "image" >> "/dev/stderr"
-        }
-        else {
-            cmd = "chafa -s " 2.5*((end - top) / num) "x \"" path "\""
+        if (DEP_CHAFA && DEP_PDFTOPPM) {
+            cmd = "pdftoppm -jpeg -f 1 -singlefile \"" path "\" 2>/dev/null | chafa -s " 2.5*((end - top) / num) "x \"-\" 2>/dev/null"
             cmd | getline fig
             close(cmd)
             split(fig, prev, "\n")
@@ -818,20 +807,56 @@ function draw_preview(item) {
                 CUP(top + i - 1, border + 1)
                 print prev[i] >> "/dev/stderr"
             }
+        } else {
+            printf "\033\13338;5;0m\033\13348;5;3m%s\033\133m", "Missing dependencies. Cannot preview PDF file." >> "/dev/stderr"
+            CUP(top + 1, border + 1)
+            printf "\033\13338;5;0m\033\13348;5;3m%s\033\133m", (DEP_CHAFA)    ? "- chafa   : Y " : "- chafa   : N " >> "/dev/stderr"
+            CUP(top + 2, border + 1)
+            printf "\033\13338;5;0m\033\13348;5;3m%s\033\133m", (DEP_PDFTOPPM) ? "- pdftoppm: Y " : "- pdftoppm: N " >> "/dev/stderr"
         }
     }
-    else if (path ~ /.*\.avi|.*\.mp4|.*\.wmv|.*\.dat|.*\.3gp|.*\.ogv|.*\.mkv|.*\.mpg|.*\.mpeg|.*\.vob|.*\.fl[icv]|.*\.m2v|.*\.mov|.*\.webm|.*\.ts|.*\.mts|.*\.m4v|.*\.r[am]|.*\.qt|.*\.divx/) {
+    else if (path ~ /.*\.bmp|.*\.jpg|.*\.jpeg|.*\.png|.*\.xpm|.*\.webp|.*\.gif/) { # Preview image file.
         CUP(top, border + 1)
-        cmd = "ffmpegthumbnailer -i \"" path "\" -o \"-\" -c jpg -s 0 -q 5 2>/dev/null | chafa -s " 2.5*((end - top) / num) "x \"-\" 2>/dev/null"
-        cmd | getline fig
-        close(cmd)
-        split(fig, prev, "\n")
-        for (i = 1; i <= ((end - top) / num); i++) {
-            CUP(top + i - 1, border + 1)
-            print prev[i] >> "/dev/stderr"
+        if (DEP_CHAFA) {
+            if (path ~ /.*\.gif/) {
+                printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "image" >> "/dev/stderr"
+            }
+            else {
+                cmd = "chafa -s " 2.5*((end - top) / num) "x \"" path "\""
+                cmd | getline fig
+                close(cmd)
+                split(fig, prev, "\n")
+                for (i = 1; i <= ((end - top) / num); i++) {
+                    CUP(top + i - 1, border + 1)
+                    print prev[i] >> "/dev/stderr"
+                }
+            }
+        } else {
+            printf "\033\13338;5;0m\033\13348;5;3m%s\033\133m", "Missing dependencies. Cannot preview image file." >> "/dev/stderr"
+            CUP(top + 1, border + 1)
+            printf "\033\13338;5;0m\033\13348;5;3m%s\033\133m", (DEP_CHAFA)    ? "- chafa   : Y " : "- chafa   : N " >> "/dev/stderr"
         }
     }
-    else {
+    else if (path ~ /.*\.avi|.*\.mp4|.*\.wmv|.*\.dat|.*\.3gp|.*\.ogv|.*\.mkv|.*\.mpg|.*\.mpeg|.*\.vob|.*\.fl[icv]|.*\.m2v|.*\.mov|.*\.webm|.*\.ts|.*\.mts|.*\.m4v|.*\.r[am]|.*\.qt|.*\.divx/) { # Preview video file.
+        CUP(top, border + 1)
+        if (DEP_CHAFA && DEP_FFMPEGTH) {
+            cmd = "ffmpegthumbnailer -i \"" path "\" -o \"-\" -c jpg -s 0 -q 5 2>/dev/null | chafa -s " 2.5*((end - top) / num) "x \"-\" 2>/dev/null"
+            cmd | getline fig
+            close(cmd)
+            split(fig, prev, "\n")
+            for (i = 1; i <= ((end - top) / num); i++) {
+                CUP(top + i - 1, border + 1)
+                print prev[i] >> "/dev/stderr"
+            }
+        } else {
+            printf "\033\13338;5;0m\033\13348;5;3m%s\033\133m", "Missing dependencies. Cannot preview video file." >> "/dev/stderr"
+            CUP(top + 1, border + 1)
+            printf "\033\13338;5;0m\033\13348;5;3m%s\033\133m", (DEP_CHAFA)    ? "- chafa            : Y " : "- chafa            : N " >> "/dev/stderr"
+            CUP(top + 2, border + 1)
+            printf "\033\13338;5;0m\033\13348;5;3m%s\033\133m", (DEP_PDFTOPPM) ? "- ffmpegthumbnailer: Y " : "- ffmpegthumbnailer: N " >> "/dev/stderr"
+        }
+    }
+    else { # Standard file
         getline content < path
         close(path)
         split(content, prev, "\n")
@@ -860,4 +885,12 @@ function notify(msg, str) {
     printf "\033\133?25l" >> "/dev/stderr" # hide cursor
     system("stty -icanon -echo")
     return str
+}
+
+function program_exists(cmd, temp) { #Check if a program exists in $PATH.
+    #Recent (2008+) POSIX specs ( https://pubs.opengroup.org/onlinepubs/9699919799/utilities/command.html ) specificate this should be a valid method.
+    cmd = "command -v " cmd
+    cmd | getline temp
+    close(cmd)
+    return (length(temp) > 0)
 }
