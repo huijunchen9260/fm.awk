@@ -386,7 +386,7 @@ function key_collect() {
         ans = substr(record, 1, 1)
         if (++rep == 1) { # only record kB/s for the first byte
             match(record, /[0-9.]* kB\/s/)
-            sec = substr(re, RSTART, RLENGTH-4)
+            sec = substr(record, RSTART, RLENGTH-4)
         }
         gsub(/[\\^$()\[\]|]/, "\\\\&", ans) # escape special char
         if (ans ~ /\033/ && rep == 1) { ans = ""; continue; } # first char of escape seq
