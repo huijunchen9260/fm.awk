@@ -212,10 +212,10 @@ function cmd_clean() { # act like uniq
 
 # function hist_clean() { # act like uniq
 #     tmp = "";
-#     getline cmdhist < HISTORY; close(HISTORY);
-#     N = split(cmdhist, cmdarr, "\n")
-#     for (i = 1; i in cmdarr; i++) { # collect items not seen
-#         if (! (cmdarr[i] in seen)) { seen[cmdarr[i]]++ }
+#     getline hisfile < HISTORY; close(HISTORY);
+#     N = split(hisfile, hisarr, "\n")
+#     for (i = 1; i in hisarr; i++) { # collect items not seen
+#         if (! (hisarr[i] in seen)) { seen[hisarr[i]]++ }
 #     }
 #     for (key in seen) { # expand seen array into string
 #         if (key != "") { tmp = tmp "\n" key }
@@ -380,29 +380,27 @@ function search(list, delim, str, mode) {
 function key_collect() {
     key = ""; rep = 0
     do {
-        # cmd = "dd ibs=1 count=1 2>/dev/null"
-        # cmd | getline ans;
-        # close(cmd)
         cmd = "dd ibs=1 count=1 2>&1"
         cmd | getline record;
         close(cmd)
         ans = substr(record, 1, 1)
-        if (++rep == 1) {
+        if (++rep == 1) { # only record kB/s for the first byte
             match(record, /[0-9.]* kB\/s/)
-            sec = substr(record, RSTART, RLENGTH-4)
+            sec = substr(re, RSTART, RLENGTH-4)
         }
-        gsub(/[\\^$()\[\]"|]/, "\\\\&", ans) # escape special char
-        key = ( ans ~ /\033/ ? key : key ans )
-        if (key ~ /^\\\[5$|^\\\[6$$/) ans = ""; continue;
-    } while (ans !~ /[\003\177[:space:][:alnum:]><\}\{.~\/:!?*+-]|\\"/ )
+        gsub(/[\\^$()\[\]|]/, "\\\\&", ans) # escape special char
+        if (ans ~ /\033/ && rep == 1) { ans = ""; continue; } # first char of escape seq
+        else { key = key ans }
+        if (key ~ /^\\\[5$|^\\\[6$$/) { ans = ""; continue; } # PageUp / PageDown
+    } while (ans !~ /[\033\003\177[:space:][:alnum:]><\}\{.~\/:!?*+-]|"/)
     return key
 }
 
 function cmd_mode() {
 
     while (key = key_collect()) {
-        if (key == "\003" || key == "\n") {
-            if (key == "\003") { reply = "\003"; }
+        if (key == "\003" || key == "\033" || key == "\n") {
+            if (key == "\003" || key == "\033") { reply = "\003"; }
             split("", comparr, ":")
             break;
         }
@@ -431,8 +429,8 @@ function cmd_mode() {
                 }
                 compdir = (compdir == "" ? dir : compdir);
                 tmplist = gen_content(compdir)
-                gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", tmplist)
                 complist = search(tmplist, delim, comp, "dir")
+                gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", complist)
                 Ncomp = split(complist, comparr, delim)
                 c = ( key == "\t" ? 1 : Ncomp )
             }
@@ -447,6 +445,7 @@ function cmd_mode() {
             if (isEmpty(comparr)) {
                 getline cmdhist < CMDHIST; close(CMDHIST);
                 comp = reply; complist = search(cmdhist, "\n", comp, "")
+                gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", complist)
                 Ncomp = split(complist, comparr, "\n")
                 c = ( key == "\t" ? 1 : Ncomp )
             }
@@ -589,6 +588,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                     }
                     if (command in cmdalias) command = cmdalias[command]
 
+                    gsub(/["]/, "\\\\&", command) # escape special char
                     if (isEmpty(selected)) {
                         system("cd \"" dir "\" && eval \"" command "\" 2>/dev/null &")
                     }
@@ -668,6 +668,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
             if ( answer == "<" ) { RATIO = (RATIO < 0.2 ? RATIO : RATIO - 0.05); break }
             if ( answer == "r" ||
                ( answer ~ /^[[:digit:]]$/ && (+answer > +Narr || +answer < 1) ) ) {
+               list = gen_content(dir)
                menu_TUI_page(list, delim)
                empty_selected()
                tmsg = dir; bmsg = "Browsing"
