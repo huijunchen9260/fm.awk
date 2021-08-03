@@ -10,6 +10,7 @@ BEGIN {
     LASTPATH = ( ENVIRON["LASTPATH"] == "" ? ( ENVIRON["HOME"] "/.cache/lastpath" ) : ENVIRON["LASTPATH"] )
     HISTORY = ( ENVIRON["HISTORY"] == "" ? ( ENVIRON["HOME"] "/.cache/history" ) : ENVIRON["HISTORY"] )
     CMDHIST = ( ENVIRON["CMDHIST"] == "" ? ( ENVIRON["HOME"] "/.cache/cmdhist" ) : ENVIRON["CMDHIST"] )
+    # FMAWK_PREVIEWER = ENVIRON["FMAWK_PREVIEWER"]
     PREVIEW = 0
     RATIO = 0.35
     HIST_MAX = 5000
@@ -816,7 +817,31 @@ function draw_preview(item) {
             print prev[i] >> "/dev/stderr"
         }
     }
-    else if (path ~ /.*\.pdf/) { # Preview PDF file.
+    else { # Standard file
+        if (path ~ /.*\.pdf|.*\.bmp|.*\.jpg|.*\.jpeg|.*\.png|.*\.xpm|.*\.webp|.*\.gif|.*\.avi|.*\.mp4|.*\.wmv|.*\.dat|.*\.3gp|.*\.ogv|.*\.mkv|.*\.mpg|.*\.mpeg|.*\.vob|.*\.fl[icv]|.*\.m2v|.*\.mov|.*\.webm|.*\.ts|.*\.mts|.*\.m4v|.*\.r[am]|.*\.qt|.*\.divx/) {
+            graphic_preview()
+        }
+        else {
+            getline content < path
+            close(path)
+            split(content, prev, "\n")
+            for (i = 1; i <= ((end - top) / num); i++) {
+                CUP(top + i - 1, border + 1)
+                code = gsub(/\000/, "", prev[i])
+                if (code > 0) {
+                    printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "binary" >> "/dev/stderr"
+                    break
+                }
+                print prev[i] >> "/dev/stderr"
+            }
+        }
+
+    }
+}
+
+function graphic_preview() {
+
+    if (path ~ /.*\.pdf/) { # Preview PDF file.
         CUP(top, border + 1)
         if (DEP_CHAFA && DEP_PDFTOPPM) {
             cmd = "pdftoppm -jpeg -f 1 -singlefile \"" path "\" 2>/dev/null | chafa -s " 2.5*((end - top) / num) "x \"-\" 2>/dev/null"
@@ -875,21 +900,6 @@ function draw_preview(item) {
             CUP(top + 2, border + 1)
             printf "\033\13338;5;0m\033\13348;5;3m%s\033\133m", (DEP_PDFTOPPM) ? "- ffmpegthumbnailer: Y " : "- ffmpegthumbnailer: N " >> "/dev/stderr"
         }
-    }
-    else { # Standard file
-        getline content < path
-        close(path)
-        split(content, prev, "\n")
-        for (i = 1; i <= ((end - top) / num); i++) {
-            CUP(top + i - 1, border + 1)
-            code = gsub(/\000/, "", prev[i])
-            if (code > 0) {
-                printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "binary" >> "/dev/stderr"
-                break
-            }
-            print prev[i] >> "/dev/stderr"
-        }
-
     }
 }
 
