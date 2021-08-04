@@ -104,6 +104,7 @@ function main() {
         if (bmsg == "Actions") {
             if (response == "History") { hist_act(); empty_selected(); response = result[1]; bmsg = ""; }
             if (response == "mv" || response == "cp -R" || response == "ln -sf" || response == "rm -rf") {
+                sind = 0
                 if (isEmpty(selected)) {
                     bmsg = sprintf("\033\13338;5;15m\033\13348;5;9m%s\033\133m", "Error: Nothing Selected")
                 }
@@ -179,6 +180,7 @@ function main() {
         finale()
         system(OPENER " \"" dir response "\"")
         init()
+        old_dir = ""; parent = "";
 
     } while (1)
 
@@ -381,17 +383,24 @@ function search(list, delim, str, mode) {
 function key_collect() {
     key = ""; rep = 0
     do {
-        cmd = "dd ibs=1 count=1 2>&1"
-        cmd | getline record;
+        cmd = "dd ibs=1 count=1 2>/dev/null"
+        cmd | getline ans;
         close(cmd)
-        ans = substr(record, 1, 1)
-        if (++rep == 1) { # only record kB/s for the first byte
-            match(record, /[0-9.]* kB\/s/)
-            sec = substr(record, RSTART, RLENGTH-4)
-        }
+        rep++
+
+        # cmd = "dd ibs=1 count=1 2>&1"
+        # cmd | getline record;
+        # close(cmd)
+        # ans = substr(record, 1, 1)
+        # if (++rep == 1) { # only record kB/s for the first byte
+        #     match(record, /[0-9.]* kB\/s/)
+        #     sec = substr(record, RSTART, RLENGTH-4)
+        # }
+
         gsub(/[\\^$()\[\]|]/, "\\\\&", ans) # escape special char
         if (ans ~ /\033/ && rep == 1) { ans = ""; continue; } # first char of escape seq
         else { key = key ans }
+        if (key ~ /[^\x00-\x7f]/) { break } # print non-ascii char
         if (key ~ /^\\\[5$|^\\\[6$$/) { ans = ""; continue; } # PageUp / PageDown
     } while (ans !~ /[\033\003\177[:space:][:alnum:]><\}\{.~\/:!?*+-]|"/)
     return key
@@ -467,7 +476,6 @@ function cmd_mode() {
         else if (answer == "/" && key ~ /\t|\[Z/) {
             cc = 0; dd = 0;
             if (isEmpty(comparr)) {
-                # list = gen_content(dir)
                 comp = reply; complist = search(list, delim, comp, "")
                 gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", complist)
                 Ncomp = split(complist, comparr, delim)
@@ -479,10 +487,12 @@ function cmd_mode() {
             }
             reply = comparr[c]
         }
-        else if (key ~ /\[D|\[C/) { # Left / Right arrow
+        # Left / Right arrow
+        else if (key ~ /\[D|\[C/) {
             if (-cc < length(reply) && key ~ /\[D/) { cc-- }
             if (cc < 0 && key ~ /\[C/) { cc++ }
         }
+        # Reject other escape sequence
         else if (key ~ /\[.+/) {
             continue
         }
@@ -616,7 +626,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                     slist = search(list, delim, substr(answer, 2), "")
                     if (slist != "") {
                         menu_TUI_page(slist, delim)
-                        cursor = 1; curpage = 1;
+                        cursor = 1; curpage = 1; sind = 1
                         if (+Narr == +1) { answer = 1 }
                     }
                     break
@@ -636,7 +646,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
             if (answer ~ /[?]/) {
                 menu_TUI_page(help, RS)
                 tmsg = "Key bindings"; bmsg = "Helps"
-                cursor = 1; curpage = 1;
+                cursor = 1; curpage = 1; sind = 1
                 break
             }
 
@@ -668,12 +678,14 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
             if ( answer == ">" ) { RATIO = (RATIO > 0.8 ? RATIO : RATIO + 0.05); break }
             if ( answer == "<" ) { RATIO = (RATIO < 0.2 ? RATIO : RATIO - 0.05); break }
             if ( answer == "r" ||
-               ( answer ~ /^[[:digit:]]$/ && (+answer > +Narr || +answer < 1) ) ) {
+               ( answer ~ /^[[:digit:]]$/ && (+answer > +Narr || +answer < 1 ) ) ||
+               ( (answer == "h" || answer ~ /\[D/) && sind == 1 ) ) {
                list = gen_content(dir)
+               delim = "\f"; num = 1; tmsg = dir; bmsg = ( bmsg == "" ? "Browsing" : bmsg );
                menu_TUI_page(list, delim)
                empty_selected()
                tmsg = dir; bmsg = "Browsing"
-               cursor = 1; curpage = (+curpage > +page ? page : curpage);
+               cursor = 1; curpage = (+curpage > +page ? page : curpage); sind = 0
                break
            }
            if ( bmsg == "Helps" && (answer == "\r" || answer == "l" || answer ~ /\[C/) ) { continue }
@@ -681,11 +693,11 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
            if ( answer == "a" ) {
                menu_TUI_page(action, RS)
                tmsg = "Choose an action"; bmsg = "Actions"
-               cursor = 1; curpage = 1;
+               cursor = 1; curpage = 1; sind = 1;
                break
            }
            if ( answer ~ /q|\003/ ) exit
-           if ( (answer == "h" || answer ~ /\[D/) && dir != "/" ) { answer = "../"; disp[answer] = "../"; bmsg = ""; break }
+           if ( (answer == "h" || answer ~ /\[D/) && dir != "/" && sind != 1 ) { answer = "../"; disp[answer] = "../"; bmsg = ""; break }
            if ( (answer == "h" || answer ~ /\[D/) && dir = "/" ) continue
            if ( (answer == "n" || answer ~ /\[6~/) && +curpage < +page ) { curpage++; break }
            if ( (answer == "n" || answer ~ /\[6~/) && +curpage == +page && cursor != Narr - dispnum*(curpage-1) ) { cursor = ( +curpage == +page ? Narr - dispnum*(curpage-1) : dispnum ); break }
@@ -740,9 +752,11 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                    selp = 0
                    for (entry = 1; entry in disp; entry++) {
                        TMP = disp[entry]; gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", TMP)
-                       selected[entry] = dir TMP;
-                       seldisp[entry] = TMP;
-                       selpage[entry] = ((+entry) % (+dispnum) == 1 ? ++selp : selp)
+                       if (TMP != "./" && TMP != "../") {
+                           selected[entry] = dir TMP;
+                           seldisp[entry] = TMP;
+                           selpage[entry] = ((+entry) % (+dispnum) == 1 ? ++selp : selp)
+                       }
                    }
                    bmsg = "All selected"
                }
@@ -801,11 +815,11 @@ function draw_preview(item) {
         printf "\033\133K" >> "/dev/stderr" # clear line
     }
 
-    if (+sec > 0.0) {
-        CUP(top, border + 1)
-        printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "move too fast!" >> "/dev/stderr"
-        return
-    }
+    # if (+sec > 0.0) {
+    #     CUP(top, border + 1)
+    #     printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "move too fast!" >> "/dev/stderr"
+    #     return
+    # }
 
     gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", item)
     path = dir item
