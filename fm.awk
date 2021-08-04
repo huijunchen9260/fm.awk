@@ -19,6 +19,7 @@ BEGIN {
     #  Initialization  #
     ####################
 
+    srand(); old_time = srand();
     init()
     RS = "\a"
     dir = ( ENVIRON["PWD"] == "/" ? "/" : ENVIRON["PWD"] "/" )
@@ -383,19 +384,17 @@ function search(list, delim, str, mode) {
 function key_collect() {
     key = ""; rep = 0
     do {
+
         cmd = "dd ibs=1 count=1 2>/dev/null"
         cmd | getline ans;
         close(cmd)
-        rep++
 
-        # cmd = "dd ibs=1 count=1 2>&1"
-        # cmd | getline record;
-        # close(cmd)
-        # ans = substr(record, 1, 1)
-        # if (++rep == 1) { # only record kB/s for the first byte
-        #     match(record, /[0-9.]* kB\/s/)
-        #     sec = substr(record, RSTART, RLENGTH-4)
-        # }
+        if (++rep == 1) {
+            srand(); time = srand()
+            if (time - old_time == 0) { sec++ }
+            else { sec = 0 }
+            old_time = time
+        }
 
         gsub(/[\\^$()\[\]|]/, "\\\\&", ans) # escape special char
         if (ans ~ /\033/ && rep == 1) { ans = ""; continue; } # first char of escape seq
@@ -815,11 +814,11 @@ function draw_preview(item) {
         printf "\033\133K" >> "/dev/stderr" # clear line
     }
 
-    # if (+sec > 0.0) {
-    #     CUP(top, border + 1)
-    #     printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "move too fast!" >> "/dev/stderr"
-    #     return
-    # }
+    if (+sec > 1) {
+        CUP(top, border + 1)
+        printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "move too fast!" >> "/dev/stderr"
+        return
+    }
 
     gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", item)
     path = dir item
