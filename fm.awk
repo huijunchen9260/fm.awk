@@ -19,6 +19,7 @@ BEGIN {
     #  Initialization  #
     ####################
 
+    # Credit: https://unix.stackexchange.com/questions/224969/current-date-in-awk/225463#225463
     srand(); old_time = srand();
     init()
     RS = "\a"
@@ -49,31 +50,29 @@ BEGIN {
          "cp -R" RS \
          "ln -sf" RS \
          "rm -rf"
-    help = "[num] - choose entries"  RS \
-       "[num]+G - Go to page [num]" RS \
-       "k/↑ - up" RS \
-       "j/↓ - down" RS \
-       "l/→ - right" RS \
-       "h/← - left" RS \
-       "n/PageDown - PageDown" RS \
-       "p/PageUp - PageUp" RS \
-       "t/Home - go to first page" RS \
-       "b/End - go to last page" RS \
-       "g - go to first entry in current page" RS \
-       "G - go to last entry in current page" RS \
-       "r - refresh" RS \
-       "! - spawn shell" RS \
-       "/ - search" RS \
-       ": - commandline mode" RS \
-       "- - go to previous directory" RS \
-       "␣ - bulk (de-)selection" RS \
-       "V - bulk (de-)selection all " RS \
-       "v - toggle preview" RS \
-       "> - more directory ratio" RS \
-       "< - less directory ratio" RS \
-       "a - actions"
-       "? - show keybinds" RS \
-       "q - quit"
+
+    help = "\n" \
+       "NUMBERS: \n" \
+       "\t[num] - choose entries \n" \
+       "\t[num]+G - Go to page [num] \n" \
+       "NAVIGATION: \n" \
+       "\tk/↑ - up                      j/↓ - down \n" \
+       "\tl/→ - right                   h/← - left \n" \
+       "\tn/PageDown - PageDown         p/PageUp - PageUp \n"  \
+       "\tg/Home - first page           G/End - last page \n"  \
+       "\tt - first entry               b - last entry \n"  \
+       "MODES: \n" \
+       "\t/ - search \n"  \
+       "\t: - commandline mode \n"  \
+       "SELECTION: \n" \
+       "\t␣ - bulk (de-)selection       V - bulk (de-)selection all  \n"  \
+       "PREVIEW: \n" \
+       "\tv - toggle preview \n"  \
+       "\t> - more directory ratio      < - less directory ratio \n"  \
+       "MISC: \n" \
+       "\tr - refresh                   a - actions \n" \
+       "\t- - previous directory        ! - spawn shell \n" \
+       "\t? - show keybinds             q - quit \n"
 
     main();
 }
@@ -103,9 +102,8 @@ function main() {
         #######################
 
         if (bmsg == "Actions") {
-            if (response == "History") { hist_act(); empty_selected(); response = result[1]; bmsg = ""; }
+            if (response == "History") { hist_act(); empty_selected(); response = result[1]; bmsg = "";}
             if (response == "mv" || response == "cp -R" || response == "ln -sf" || response == "rm -rf") {
-                sind = 0
                 if (isEmpty(selected)) {
                     bmsg = sprintf("\033\13338;5;15m\033\13348;5;9m%s\033\133m", "Error: Nothing Selected")
                 }
@@ -212,21 +210,6 @@ function cmd_clean() { # act like uniq
     tmp = substr(tmp, 2)
     printf("%s", tmp) > CMDHIST; close(CMDHIST)
 }
-
-
-# function hist_clean() { # act like uniq
-#     tmp = "";
-#     getline hisfile < HISTORY; close(HISTORY);
-#     N = split(hisfile, hisarr, "\n")
-#     for (i = 1; i in hisarr; i++) { # collect items not seen
-#         if (! (hisarr[i] in seen)) { seen[hisarr[i]]++ }
-#     }
-#     for (key in seen) { # expand seen array into string
-#         if (key != "") { tmp = tmp "\n" key }
-#     }
-#     # tmp = substr(tmp, 2)
-#     printf("%s", tmp) > HISTORY; close(HISTORY)
-# }
 
 function hist_clean() {
     getline hisfile < HISTORY; close(HISTORY);
@@ -343,6 +326,8 @@ function menu_TUI_page(list, delim) {
 
     Narr = split(list, disp, delim)
     dispnum = (dispnum <= Narr ? dispnum : Narr)
+    move = int(dispnum*0.5)
+    # move = ( dispnum <= Narr ? int(dispnum*0.5) : int(Narr*0.5) )
 
     # generate display content for each page (pagearr)
     for (entry = 1; entry in disp; entry++) {
@@ -401,12 +386,13 @@ function key_collect() {
         else { key = key ans }
         if (key ~ /[^\x00-\x7f]/) { break } # print non-ascii char
         if (key ~ /^\\\[5$|^\\\[6$$/) { ans = ""; continue; } # PageUp / PageDown
-    } while (ans !~ /[\033\003\177[:space:][:alnum:]><\}\{.~\/:!?*+-]|"/)
+    } while (ans !~ /[\006\025\033\003\177[:space:][:alnum:]><\}\{.~\/:!?*+-]|"/)
     return key
 }
 
 function cmd_mode() {
 
+    cmd_trigger = answer;
     while (key = key_collect()) {
         if (key == "\003" || key == "\033" || key == "\n") {
             if (key == "\003" || key == "\033") { reply = "\003"; }
@@ -418,8 +404,8 @@ function cmd_mode() {
             split("", comparr, ":")
         }
         # cd
-        else if (answer reply == ":cd " && key == "~") { reply = reply ENVIRON["HOME"] "/" }
-        else if (answer reply ~ /:cd .*/ && key ~ /\t|\[Z/) { # Tab / Shift-Tab
+        else if (cmd_trigger reply == ":cd " && key == "~") { reply = reply ENVIRON["HOME"] "/" }
+        else if (cmd_trigger reply ~ /:cd .*/ && key ~ /\t|\[Z/) { # Tab / Shift-Tab
             cc = 0; dd = 0;
             if (isEmpty(comparr)) {
                 comp = reply; gsub(/cd /, "", comp)
@@ -450,7 +436,7 @@ function cmd_mode() {
             reply = "cd " compdir comparr[c]
         }
         # command completion
-        else if (answer == ":" && key ~ /\t|\[Z/) {
+        else if (cmd_trigger == ":" && key ~ /\t|\[Z/) {
             if (isEmpty(comparr)) {
                 getline cmdhist < CMDHIST; close(CMDHIST);
                 comp = reply; complist = search(cmdhist, "\n", comp, "")
@@ -464,7 +450,7 @@ function cmd_mode() {
             }
             reply = comparr[c]
         }
-        else if (answer == ":" && key ~ /\[A|\[B/) {
+        else if (cmd_trigger == ":" && key ~ /\[A|\[B/) {
             getline cmdhist < CMDHIST; close(CMDHIST);
             Ncmd = split(cmdhist, cmdarr, "\n")
             reply = cmdarr[Ncmd - dd]
@@ -472,7 +458,7 @@ function cmd_mode() {
             if (key ~ /\[B/) { dd = (dd == 0 ? dd : dd - 1) }
         }
         # search
-        else if (answer == "/" && key ~ /\t|\[Z/) {
+        else if (cmd_trigger == "/" && key ~ /\t|\[Z/) {
             cc = 0; dd = 0;
             if (isEmpty(comparr)) {
                 comp = reply; complist = search(list, delim, comp, "")
@@ -499,8 +485,24 @@ function cmd_mode() {
             reply = substr(reply, 1, length(reply) + cc) key substr(reply, length(reply) + cc + 1);
             split("", comparr, ":")
         }
+
+        if (cmd_trigger == "/") {
+            slist = search(list, delim, reply, "")
+            if (slist != "") {
+                Nsarr = split(slist, sarr, delim)
+                for (i = top; i <= end; i++) {
+                    CUP(i, 1)
+                    printf "\033\133K" >> "/dev/stderr" # clear line
+                }
+                Nsarr = (Nsarr > dispnum ? dispnum : Nsarr)
+                for (i = 1; i <= Nsarr; i++) {
+                    CUP(i + 2, 1)
+                    printf "%d. %s", i, sarr[i] >> "/dev/stderr"
+                }
+            }
+        }
         CUP(dim[1], 1)
-        status = sprintf("\033\1332K%s%s", answer, reply)
+        status = sprintf("\033\1332K%s%s", cmd_trigger, reply)
         printf(status) >> "/dev/stderr" # clear line
         if (cc < 0) { CUP(dim[1], length(status) + cc - 3) } # adjust cursor
     }
@@ -524,8 +526,8 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
         CUP(dim[1] - 2, 1); print bmsg >> "/dev/stderr"
         CUP(dim[1], 1)
         printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: ", Narr, curpage, page >> "/dev/stderr"
-        if (bmsg !~ /Action.*|Helps/ && ! isEmpty(selected)) draw_selected()
-        if (bmsg !~ /Action.*|Helps/ && PREVIEW == 1) draw_preview(disp[Ncursor])
+        if (bmsg !~ /Action.*/ && ! isEmpty(selected)) draw_selected()
+        if (bmsg !~ /Action.*/ && PREVIEW == 1) draw_preview(disp[Ncursor])
 
         while (1) {
 
@@ -544,13 +546,6 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                     printf "\033\1332K%s", answer >> "/dev/stderr" # clear line
                 }
                 printf "\033\133?25h" >> "/dev/stderr" # show cursor
-
-                # system("stty icanon echo -tabs")
-                # cmd = "read -r ans; echo \"$ans\" 2>/dev/null"
-                # RS = "\n"; cmd | getline ans; RS = "\a"
-                # close(cmd)
-                # system("stty -icanon -echo tabs")
-                # answer = answer ans; ans = ""
 
                 cmd_mode()
 
@@ -625,7 +620,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                     slist = search(list, delim, substr(answer, 2), "")
                     if (slist != "") {
                         menu_TUI_page(slist, delim)
-                        cursor = 1; curpage = 1; sind = 1
+                        cursor = 1; curpage = 1;
                         if (+Narr == +1) { answer = 1 }
                     }
                     break
@@ -642,12 +637,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                 break
             }
 
-            if (answer ~ /[?]/) {
-                menu_TUI_page(help, RS)
-                tmsg = "Key bindings"; bmsg = "Helps"
-                cursor = 1; curpage = 1; sind = 1
-                break
-            }
+            if (answer ~ /[?]/) { pager(help); break; }
 
             if (answer == "!") {
                 finale()
@@ -677,37 +667,33 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
             if ( answer == ">" ) { RATIO = (RATIO > 0.8 ? RATIO : RATIO + 0.05); break }
             if ( answer == "<" ) { RATIO = (RATIO < 0.2 ? RATIO : RATIO - 0.05); break }
             if ( answer == "r" ||
-               ( answer ~ /^[[:digit:]]$/ && (+answer > +Narr || +answer < 1 ) ) ||
-               ( (answer == "h" || answer ~ /\[D/) && sind == 1 ) ) {
-               list = gen_content(dir)
-               delim = "\f"; num = 1; tmsg = dir; bmsg = ( bmsg == "" ? "Browsing" : bmsg );
+               ( answer ~ /^[[:digit:]]$/ && (+answer > +Narr || +answer < 1 ) ) ) {
                menu_TUI_page(list, delim)
                empty_selected()
                tmsg = dir; bmsg = "Browsing"
-               cursor = 1; curpage = (+curpage > +page ? page : curpage); sind = 0
+               cursor = 1; curpage = (+curpage > +page ? page : curpage);
                break
            }
-           if ( bmsg == "Helps" && (answer == "\r" || answer == "l" || answer ~ /\[C/) ) { continue }
-           if ( bmsg != "Helps" && (answer == "\r" || answer == "l" || answer ~ /\[C/) ) { answer = Ncursor; break }
+           if ( answer == "\r" || answer == "l" || answer ~ /\[C/ ) { answer = Ncursor; break }
            if ( answer == "a" ) {
                menu_TUI_page(action, RS)
                tmsg = "Choose an action"; bmsg = "Actions"
-               cursor = 1; curpage = 1; sind = 1;
+               cursor = 1; curpage = 1;
                break
            }
            if ( answer ~ /q|\003/ ) exit
-           if ( (answer == "h" || answer ~ /\[D/) && dir != "/" && sind != 1 ) { answer = "../"; disp[answer] = "../"; bmsg = ""; break }
+           if ( (answer == "h" || answer ~ /\[D/) && dir != "/" ) { answer = "../"; disp[answer] = "../"; bmsg = ""; break }
            if ( (answer == "h" || answer ~ /\[D/) && dir = "/" ) continue
            if ( (answer == "n" || answer ~ /\[6~/) && +curpage < +page ) { curpage++; break }
            if ( (answer == "n" || answer ~ /\[6~/) && +curpage == +page && cursor != Narr - dispnum*(curpage-1) ) { cursor = ( +curpage == +page ? Narr - dispnum*(curpage-1) : dispnum ); break }
-           if ( (answer == "n" || answer ~ /\[6~/) && +curpage == +page && cursor = Narr - dispnum*(curpage-1) ) continue
+           if ( (answer == "n" || answer ~ /\[6~/) && +curpage == +page && cursor == Narr - dispnum*(curpage-1) ) continue
            if ( (answer == "p" || answer ~ /\[5~/) && +curpage > 1) { curpage--; break }
            if ( (answer == "p" || answer ~ /\[5~/) && +curpage == 1 && cursor != 1 ) { cursor = 1; break }
-           if ( (answer == "p" || answer ~ /\[5~/) && +curpage == 1 && cursor = 1) continue
-           if ( (answer == "t" || answer ~ /\[H/) && ( curpage != 1 || cursor != 1 ) ) { curpage = 1; cursor = 1; break }
-           if ( (answer == "t" || answer ~ /\[H/) && curpage = 1 && cursor = 1 ) continue
-           if ( (answer == "b" || answer ~ /\[F/) && ( curpage != page || cursor != Narr - dispnum*(curpage-1) ) ) { curpage = page; cursor = Narr - dispnum*(curpage-1); break }
-           if ( (answer == "b" || answer ~ /\[F/) && curpage = page && cursor = Narr - dispnum*(curpage-1) ) continue
+           if ( (answer == "p" || answer ~ /\[5~/) && +curpage == 1 && cursor == 1) continue
+           if ( (answer == "g" || answer ~ /\[H/) && ( curpage != 1 || cursor != 1 ) ) { curpage = 1; cursor = 1; break }
+           if ( (answer == "g" || answer ~ /\[H/) && curpage = 1 && cursor == 1 ) continue
+           if ( (answer == "G" || answer ~ /\[F/) && ( curpage != page || cursor != Narr - dispnum*(curpage-1) ) ) { curpage = page; cursor = Narr - dispnum*(curpage-1); break }
+           if ( (answer == "G" || answer ~ /\[F/) && curpage == page && cursor = Narr - dispnum*(curpage-1) ) continue
 
             #########################
             #  Key: Partial Redraw  #
@@ -715,10 +701,16 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
            if ( (answer == "j" || answer ~ /\[B/) && +cursor <= +dispnum ) { oldCursor = cursor; cursor++; }
            if ( (answer == "j" || answer ~ /\[B/) && +cursor > +dispnum  && page > 1 ) { cursor = 1; curpage++; break }
-           if ( (answer == "k" || answer ~ /\[A/) && +cursor == 1  && curpage > 1 && page > 1 ) { cursor = dispnum; curpage--; break }
-           if ( (answer == "k" || answer ~ /\[A/) && +cursor >= 1 ) { oldCursor = cursor; cursor--; }
-           if ( answer == "g" ) { oldCursor = cursor; cursor = 1; }
-           if ( answer == "G" ) { oldCursor = cursor; cursor = ( +curpage == +page ?  Narr - dispnum*(curpage-1) : dispnum ); }
+           if ( (answer == "k" || answer ~ /\[A/) && +cursor == 1 && curpage > 1 && page > 1 ) { cursor = dispnum; curpage--; break }
+           if ( (answer == "k" || answer ~ /\[A/) && +cursor > 1 ) { oldCursor = cursor; cursor--; }
+
+
+           # if ( answer == "\006" && +cursor <= +dispnum ) { oldCursor = cursor; cursor = cursor + move; }
+           # if ( answer == "\006" && +cursor > +dispnum && page > 1 && curpage < page ) { cursor = cursor - dispnum; curpage++; break }
+           # if ( answer == "\006" && +cursor >= +(Narr - dispnum*(curpage-1) - move) && page > 1 && curpage == page ) { cursor = Narr - dispnum*(curpage-1); break }
+
+           if ( answer == "t" ) { oldCursor = cursor; cursor = 1; }
+           if ( answer == "b" ) { oldCursor = cursor; cursor = ( +curpage == +page ? Narr - dispnum*(curpage-1) : dispnum ); }
 
             ####################
             #  Key: Selection  #
@@ -794,8 +786,8 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
             CUP(top + cursor*num - num, 1);
             printf "%s\033\1337m%s\033\133m", Ncursor ". ", disp[Ncursor] >> "/dev/stderr"
 
-            if (bmsg !~ /Action.*|Helps/ && ! isEmpty(selected)) draw_selected()
-            if (bmsg !~ /Action.*|Helps/ && PREVIEW == 1) draw_preview(disp[Ncursor])
+            if (bmsg !~ /Action.*/ && ! isEmpty(selected)) draw_selected()
+            if (bmsg !~ /Action.*/ && PREVIEW == 1) draw_preview(disp[Ncursor])
 
         }
 
@@ -804,6 +796,23 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
     result[1] = disp[answer]
     result[2] = bmsg
 }
+
+function pager(msg) {
+    printf "\033\1332J\033\133H" >> "/dev/stderr"
+    Nmsgarr = split(msg, msgarr, "\n")
+    Npager = (Nmsgarr >= dim[1] ? dim[1] : Nmsgarr)
+    for (i = 1; i <= Npager; i++) {
+        CUP(i, 1)
+        printf "%s", msgarr[i] >> "/dev/stderr"
+    }
+
+    while (key = key_collect()) {
+        if (key == "\003" || key == "\033" || key == "q") break
+        if ((key == "j" || key ~ /\[B/) && i < Nmsgarr) { printf "\033\133%d;H\n", Npager >> "/dev/stderr"; printf msgarr[i++] >> "/dev/stderr" }
+        if ((key == "k" || key ~ /\[A/) && i > dim[1] + 1) { printf "\033\133H\033\133L" >> "/dev/stderr"; i--; printf msgarr[i-dim[1]] >> "/dev/stderr" }
+    }
+}
+
 
 function draw_preview(item) {
 
@@ -814,9 +823,9 @@ function draw_preview(item) {
         printf "\033\133K" >> "/dev/stderr" # clear line
     }
 
-    if (+sec > 1) {
-        CUP(top, border + 1)
-        printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "move too fast!" >> "/dev/stderr"
+    if (+sec > 3) {
+        # CUP(top, border + 1)
+        # printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "move too fast!" >> "/dev/stderr"
         return
     }
 
@@ -914,20 +923,6 @@ function graphic_preview() {
             printf "\033\13338;5;0m\033\13348;5;3m%s\033\133m", (DEP_PDFTOPPM) ? "- ffmpegthumbnailer: Y " : "- ffmpegthumbnailer: N " >> "/dev/stderr"
         }
     }
-}
-
-function notify(msg, str) {
-
-    printf "\033\1332J\033\133H"
-    print msg
-    system("stty icanon echo")
-    printf "\033\133?25h" >> "/dev/stderr" # show cursor
-    cmd = "read -r ans; echo \"$ans\" 2>/dev/null"
-    RS = "\n"; cmd | getline ans; RS = "\a"
-    close(cmd)
-    printf "\033\133?25l" >> "/dev/stderr" # hide cursor
-    system("stty -icanon -echo")
-    return str
 }
 
 function program_exists(cmd, temp) { #Check if a program exists in $PATH.
