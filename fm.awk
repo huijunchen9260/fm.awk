@@ -55,20 +55,25 @@ BEGIN {
        "NUMBERS: \n" \
        "\t[num] - choose entries \n" \
        "\t[num]+G - Go to page [num] \n" \
+       "\n" \
        "NAVIGATION: \n" \
        "\tk/↑ - up                      j/↓ - down \n" \
        "\tl/→ - right                   h/← - left \n" \
        "\tn/PageDown - PageDown         p/PageUp - PageUp \n"  \
        "\tg/Home - first page           G/End - last page \n"  \
        "\tt - first entry               b - last entry \n"  \
+       "\n" \
        "MODES: \n" \
        "\t/ - search \n"  \
        "\t: - commandline mode \n"  \
+       "\n" \
        "SELECTION: \n" \
        "\t␣ - bulk (de-)selection       V - bulk (de-)selection all  \n"  \
+       "\n" \
        "PREVIEW: \n" \
        "\tv - toggle preview \n"  \
        "\t> - more directory ratio      < - less directory ratio \n"  \
+       "\n" \
        "MISC: \n" \
        "\tr - refresh                   a - actions \n" \
        "\t- - previous directory        ! - spawn shell \n" \
@@ -488,12 +493,12 @@ function cmd_mode() {
 
         if (cmd_trigger == "/") {
             slist = search(list, delim, reply, "")
+            for (i = top; i <= end; i++) {
+                CUP(i, 1)
+                printf "\033\133K" >> "/dev/stderr" # clear line
+            }
             if (slist != "") {
                 Nsarr = split(slist, sarr, delim)
-                for (i = top; i <= end; i++) {
-                    CUP(i, 1)
-                    printf "\033\133K" >> "/dev/stderr" # clear line
-                }
                 Nsarr = (Nsarr > dispnum ? dispnum : Nsarr)
                 for (i = 1; i <= Nsarr; i++) {
                     CUP(i + 2, 1)
@@ -797,7 +802,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
     result[2] = bmsg
 }
 
-function pager(msg) {
+function pager(msg) { # pager to print out stuff and navigate
     printf "\033\1332J\033\133H" >> "/dev/stderr"
     Nmsgarr = split(msg, msgarr, "\n")
     Npager = (Nmsgarr >= dim[1] ? dim[1] : Nmsgarr)
