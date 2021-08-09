@@ -53,7 +53,7 @@ BEGIN {
 
     help = "\n" \
        "NUMBERS: \n" \
-       "\t[num] - choose entries \n" \
+       "\t[num] - move cursor to entry [num] \n" \
        "\t[num]+G - Go to page [num] \n" \
        "\n" \
        "NAVIGATION: \n" \
@@ -61,7 +61,8 @@ BEGIN {
        "\tl/→ - right                   h/← - left \n" \
        "\tn/PageDown - PageDown         p/PageUp - PageUp \n"  \
        "\tg/Home - first page           G/End - last page \n"  \
-       "\tt - first entry               b - last entry \n"  \
+       "\tH - first entry               L - last entry \n"  \
+       "\tM - middle entry\n" \
        "\n" \
        "MODES: \n" \
        "\t/ - search \n"  \
@@ -515,7 +516,12 @@ function cmd_mode() {
             }
         }
         CUP(dim[1], 1)
-        status = sprintf("\033\1332K%s%s", cmd_trigger, reply)
+        if (cmd_trigger ~ /^[[:digit:]]$/) {
+            status = sprintf("\033\1332KChoose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: %s%s", Narr, curpage, page, cmd_trigger, reply)
+        }
+        else {
+            status = sprintf("\033\1332K%s%s", cmd_trigger, reply)
+        }
         printf(status) >> "/dev/stderr" # clear line
         if (cc < 0) { CUP(dim[1], length(status) + cc - 3) } # adjust cursor
     }
@@ -647,6 +653,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                 }
                 if (+answer > +Narr) answer = Narr
                 if (+answer < 1) answer = 1
+                cursor = answer - dispnum*(curpage-1); answer = ""
                 break
             }
 
@@ -716,14 +723,9 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
            if ( (answer == "j" || answer ~ /\[B/) && +cursor > +dispnum  && page > 1 ) { cursor = 1; curpage++; break }
            if ( (answer == "k" || answer ~ /\[A/) && +cursor == 1 && curpage > 1 && page > 1 ) { cursor = dispnum; curpage--; break }
            if ( (answer == "k" || answer ~ /\[A/) && +cursor > 1 ) { oldCursor = cursor; cursor--; }
-
-
-           # if ( answer == "\006" && +cursor <= +dispnum ) { oldCursor = cursor; cursor = cursor + move; }
-           # if ( answer == "\006" && +cursor > +dispnum && page > 1 && curpage < page ) { cursor = cursor - dispnum; curpage++; break }
-           # if ( answer == "\006" && +cursor >= +(Narr - dispnum*(curpage-1) - move) && page > 1 && curpage == page ) { cursor = Narr - dispnum*(curpage-1); break }
-
-           if ( answer == "t" ) { oldCursor = cursor; cursor = 1; }
-           if ( answer == "b" ) { oldCursor = cursor; cursor = ( +curpage == +page ? Narr - dispnum*(curpage-1) : dispnum ); }
+           if ( answer == "H" ) { oldCursor = cursor; cursor = 1; }
+           if ( answer == "M" ) { oldCursor = cursor; cursor = ( +curpage == +page ? int((Narr - dispnum*(curpage-1))*0.5) : int(dispnum*0.5) ); }
+           if ( answer == "L" ) { oldCursor = cursor; cursor = ( +curpage == +page ? Narr - dispnum*(curpage-1) : dispnum ); }
 
             ####################
             #  Key: Selection  #
@@ -836,9 +838,9 @@ function draw_preview(item) {
         printf "\033\133K" >> "/dev/stderr" # clear line
     }
 
-    if (+sec > 3) {
-        # CUP(top, border + 1)
-        # printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "move too fast!" >> "/dev/stderr"
+    if (+sec > 5) {
+        CUP(top, border + 1)
+        printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "move too fast!" >> "/dev/stderr"
         return
     }
 

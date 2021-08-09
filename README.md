@@ -15,22 +15,28 @@ File manager written in awk
 
 ```
 NUMBERS:
-	[num] - choose entries
+	[num] - move cursor to entry [num]
 	[num]+G - Go to page [num]
+
 NAVIGATION:
 	k/↑ - up                      j/↓ - down
 	l/→ - right                   h/← - left
 	n/PageDown - PageDown         p/PageUp - PageUp
 	g/Home - first page           G/End - last page
-	t - first entry               b - last entry
+	H - first entry               L - last entry
+	M - middle entry
+
 MODES:
 	/ - search
 	: - commandline mode
+
 SELECTION:
 	␣ - bulk (de-)selection       V - bulk (de-)selection all
+
 PREVIEW:
 	v - toggle preview
 	> - more directory ratio      < - less directory ratio
+
 MISC:
 	r - refresh                   a - actions
 	- - previous directory        ! - spawn shell
