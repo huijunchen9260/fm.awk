@@ -408,12 +408,19 @@ function cmd_mode() {
             reply = substr(reply, 1, length(reply) + cc - 1) substr(reply, length(reply) + cc + 1);
             split("", comparr, ":")
         }
-        # cd
-        else if (cmd_trigger reply == ":cd " && key == "~") { reply = reply ENVIRON["HOME"] "/" }
-        else if (cmd_trigger reply ~ /:cd .*/ && key ~ /\t|\[Z/) { # Tab / Shift-Tab
+        # path completion: $HOME
+        else if (cmd_trigger reply ~ /:cd |:.* / && key == "~") { reply = reply ENVIRON["HOME"] "/" }
+        # path completion
+        else if (cmd_trigger reply ~ /:cd .*|:.* \/.*/ && key ~ /\t|\[Z/) { # Tab / Shift-Tab
             cc = 0; dd = 0;
             if (isEmpty(comparr)) {
-                comp = reply; gsub(/cd /, "", comp)
+                comp = reply;
+                if (cmd_trigger reply ~ /:cd .*/) gsub(/cd /, "", comp)
+                else {
+                    match(comp, /.* \//)
+                    cmd_run = substr(comp, RSTART, RLENGTH-1)
+                    comp = substr(comp, RLENGTH)
+                }
                 compdir = comp;
                 if (compdir ~ /^\.\.\/.*/) {
                     tmpdir = dir
@@ -438,7 +445,8 @@ function cmd_mode() {
                 if (key == "\t") c = (c == Ncomp ? 1 : c + 1)
                 else c = (c == 1 ? Ncomp : c - 1)
             }
-            reply = "cd " compdir comparr[c]
+            if (cmd_trigger reply ~ /:cd .*/) reply = "cd " compdir comparr[c]
+            else reply = cmd_run compdir comparr[c]
         }
         # command completion
         else if (cmd_trigger == ":" && key ~ /\t|\[Z/) {
