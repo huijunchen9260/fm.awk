@@ -96,4 +96,4 @@ edit `fm.awk`, modify the first configuration section:
 
 ## TODO
 
-- [ ] Image preview (now only chafa)
+- [x] Image preview (start using ueberzug)

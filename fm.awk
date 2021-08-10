@@ -11,7 +11,7 @@ BEGIN {
     HISTORY = ( ENVIRON["HISTORY"] == "" ? ( ENVIRON["HOME"] "/.cache/history" ) : ENVIRON["HISTORY"] )
     CMDHIST = ( ENVIRON["CMDHIST"] == "" ? ( ENVIRON["HOME"] "/.cache/cmdhist" ) : ENVIRON["CMDHIST"] )
     CACHE = ( ENVIRON["CACHE"] == "" ? ( ENVIRON["HOME"] "/.cache/imagecache" ) : ENVIRON["CACHE"] )
-    FMAWK_PREVIEWER = ENVIRON["FMAWK_PREVIEWER"]
+    FIFO_UEBERZUG = ENVIRON["FIFO_UEBERZUG"]
     PREVIEW = 0
     RATIO = 0.35
     HIST_MAX = 5000
@@ -92,7 +92,7 @@ END {
     finale();
     hist_clean();
     cmd_clean();
-    system("rm " CACHE ".jpg")
+    system("[ -f " CACHE ".jpg ] && rm " CACHE ".jpg 2>/dev/null")
     if (list != "empty") {
         printf("%s", dir) > "/dev/stdout"; close("/dev/stdout")
         printf("%s", dir) > LASTPATH; close(LASTPATH)
@@ -545,6 +545,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
         Ncursor = cursor+dispnum*(curpage-1)
 
         printf "\033\1332J\033\133H" >> "/dev/stderr" # clear screen and move cursor to 0, 0
+        clean_ueberzug_preview()
         CUP(top, 1); print pagearr[curpage] >> "/dev/stderr"
         CUP(top + cursor*num - num, 1); printf "%s\033\1337m%s\033\133m", Ncursor ". ", disp[Ncursor] >> "/dev/stderr"
         CUP(top - 2, 1); print tmsg >> "/dev/stderr"
@@ -843,12 +844,7 @@ function draw_preview(item) {
         CUP(i, border - 1)
         printf "\033\133K" >> "/dev/stderr" # clear line
     }
-
-    if (+sec > 5) {
-        CUP(top, border + 1)
-        printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "move too fast!" >> "/dev/stderr"
-        return
-    }
+    clean_ueberzug_preview()
 
     gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", item)
     path = dir item
@@ -883,14 +879,36 @@ function draw_preview(item) {
     }
 }
 
+function clean_ueberzug_preview() {
+    if (FIFO_UEBERZUG == "") return
+    printf "{\"action\": \"remove\", \"identifier\": \"PREVIEW\"}\n" > FIFO_UEBERZUG
+    close(FIFO_UEBERZUG)
+}
+
 function print_preview(img) {
-    cmd = "chafa -s " prevnum "x " img " 2>/dev/null"
-    cmd | getline fig
-    close(cmd)
-    split(fig, prev, "\n")
-    for (i = 1; i <= ((end - top) / num); i++) {
-        CUP(top + i - 1, border + 1)
-        print prev[i] >> "/dev/stderr"
+    if (FIFO_UEBERZUG != "") {
+        printf("{\"action\": \"add\", \"identifier\": \"PREVIEW\", \"x\": \"%s\", \"y\": \"%s\", \"width\": \"%s\", \"height\": \"%s\", \"scaler\": \"contain\", \"path\": \"%s\"}\n", border+1, 1, dim[2]-border, ((end-top)/num), img) > FIFO_UEBERZUG
+        close(FIFO_UEBERZUG)
+    }
+    else {
+        if (+sec > 5) {
+            CUP(top, border + 1)
+            printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "move too fast!" >> "/dev/stderr"
+            return
+        }
+
+        else if (path ~ /.*\.gif/) {
+            printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "image" >> "/dev/stderr"
+            return
+        }
+        cmd = "chafa -s " prevnum "x \"" img "\" 2>/dev/null"
+        cmd | getline fig
+        close(cmd)
+        split(fig, prev, "\n")
+        for (i = 1; i <= ((end - top) / num); i++) {
+            CUP(top + i - 1, border + 1)
+            print prev[i] >> "/dev/stderr"
+        }
     }
 }
 
@@ -901,8 +919,7 @@ function graphic_preview() {
             system("pdftoppm -jpeg -f 1 -singlefile \"" path "\" \"" CACHE "\" 2>/dev/null")
             print_preview(CACHE ".jpg")
         }
-        else if (path ~ /.*\.gif/) { printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "image" >> "/dev/stderr" }
-        else if (path ~ /.*\.bmp|.*\.jpg|.*\.jpeg|.*\.png|.*\.xpm|.*\.webp/) { # Preview image file.
+        else if (path ~ /.*\.bmp|.*\.jpg|.*\.jpeg|.*\.png|.*\.xpm|.*\.webp|.*\.gif/) { # Preview image file.
             print_preview(path)
         }
         else if (path ~ /.*\.avi|.*\.mp4|.*\.wmv|.*\.dat|.*\.3gp|.*\.ogv|.*\.mkv|.*\.mpg|.*\.mpeg|.*\.vob|.*\.fl[icv]|.*\.m2v|.*\.mov|.*\.webm|.*\.ts|.*\.mts|.*\.m4v|.*\.r[am]|.*\.qt|.*\.divx/) { # Preview video file.

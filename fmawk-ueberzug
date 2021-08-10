@@ -1,0 +1,15 @@
+#!/bin/sh
+
+set -e
+
+cleanup() {
+    exec 3>&-
+	rm "$FIFO_UEBERZUG"
+}
+
+export FIFO_UEBERZUG="$HOME/.cache/fmawk-ueberzug-$$"
+mkfifo "$FIFO_UEBERZUG"
+ueberzug layer -s <"$FIFO_UEBERZUG" -p json &
+exec 3>"$FIFO_UEBERZUG"
+trap cleanup EXIT
+fm.awk "$@" 3>&-
