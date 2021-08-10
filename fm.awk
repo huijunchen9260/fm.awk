@@ -835,6 +835,9 @@ function pager(msg) { # pager to print out stuff and navigate
     }
 }
 
+######################
+#  Start of Preview  #
+######################
 
 function draw_preview(item) {
 
@@ -859,7 +862,6 @@ function draw_preview(item) {
     else { # Standard file
         if (path ~ /.*\.pdf|.*\.bmp|.*\.jpg|.*\.jpeg|.*\.png|.*\.xpm|.*\.webp|.*\.gif|.*\.avi|.*\.mp4|.*\.wmv|.*\.dat|.*\.3gp|.*\.ogv|.*\.mkv|.*\.mpg|.*\.mpeg|.*\.vob|.*\.fl[icv]|.*\.m2v|.*\.mov|.*\.webm|.*\.ts|.*\.mts|.*\.m4v|.*\.r[am]|.*\.qt|.*\.divx/) {
             graphic_preview()
-            # system(FMAWK_PREVIEWER " " top " " end " " num " " border " " path " 2>/dev/null")
         }
         else {
             getline content < path
@@ -887,7 +889,7 @@ function clean_ueberzug_preview() {
 
 function print_preview(img) {
     if (FIFO_UEBERZUG != "") {
-        printf("{\"action\": \"add\", \"identifier\": \"PREVIEW\", \"x\": \"%s\", \"y\": \"%s\", \"width\": \"%s\", \"height\": \"%s\", \"scaler\": \"contain\", \"path\": \"%s\"}\n", border+1, 1, dim[2]-border, ((end-top)/num), img) > FIFO_UEBERZUG
+        printf("{\"action\": \"add\", \"identifier\": \"PREVIEW\", \"x\": \"%s\", \"y\": \"%s\", \"width\": \"%s\", \"height\": \"%s\", \"scaler\": \"contain\", \"path\": \"%s\"}\n", border+1, 1, dim[2]-border, ((end-top+1)/num), img) > FIFO_UEBERZUG
         close(FIFO_UEBERZUG)
     }
     else {
@@ -896,8 +898,7 @@ function print_preview(img) {
             printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "move too fast!" >> "/dev/stderr"
             return
         }
-
-        else if (path ~ /.*\.gif/) {
+        if (path ~ /.*\.gif/) {
             printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "image" >> "/dev/stderr"
             return
         }

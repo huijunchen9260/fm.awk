@@ -4,12 +4,16 @@ set -e
 
 cleanup() {
     exec 3>&-
-	rm "$FIFO_UEBERZUG"
+    rm "$FIFO_UEBERZUG"
 }
 
-export FIFO_UEBERZUG="$HOME/.cache/fmawk-ueberzug-$$"
-mkfifo "$FIFO_UEBERZUG"
-ueberzug layer -s <"$FIFO_UEBERZUG" -p json &
-exec 3>"$FIFO_UEBERZUG"
-trap cleanup EXIT
-fm.awk "$@" 3>&-
+if [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ]; then
+    fm.awk
+else
+    export FIFO_UEBERZUG="$HOME/.cache/fmawk-ueberzug-$$"
+    mkfifo "$FIFO_UEBERZUG"
+    ueberzug layer -s <"$FIFO_UEBERZUG" -p json &
+    exec 3>"$FIFO_UEBERZUG"
+    trap cleanup EXIT
+    fm.awk 3>&-
+fi
