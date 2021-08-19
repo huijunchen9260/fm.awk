@@ -277,6 +277,7 @@ function isEmpty(arr) { for (idx in arr) return 0; return 1 }
 ##################
 
 function finale() {
+    clean_ueberzug_preview()
     printf "\033\1332J\033\133H" >> "/dev/stderr" # clear screen
     printf "\033\133?7h" >> "/dev/stderr" # line wrap
     printf "\033\1338" >> "/dev/stderr" # restore cursor
@@ -544,8 +545,8 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
         cursor = ( cursor+dispnum*(curpage-1) > Narr ? Narr - dispnum*(curpage-1) : cursor )
         Ncursor = cursor+dispnum*(curpage-1)
 
-        printf "\033\1332J\033\133H" >> "/dev/stderr" # clear screen and move cursor to 0, 0
         clean_ueberzug_preview()
+        printf "\033\1332J\033\133H" >> "/dev/stderr" # clear screen and move cursor to 0, 0
         CUP(top, 1); print pagearr[curpage] >> "/dev/stderr"
         CUP(top + cursor*num - num, 1); printf "%s\033\1337m%s\033\133m", Ncursor ". ", disp[Ncursor] >> "/dev/stderr"
         CUP(top - 2, 1); print tmsg >> "/dev/stderr"
@@ -647,7 +648,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                     if (slist != "") {
                         menu_TUI_page(slist, delim)
                         cursor = 1; curpage = 1;
-                        if (+Narr == +1) { answer = 1 }
+                        # if (+Narr == +1) { answer = 1 }
                     }
                     break
                 }
@@ -888,8 +889,9 @@ function clean_ueberzug_preview() {
 }
 
 function print_preview(img) {
+
     if (FIFO_UEBERZUG != "") {
-        printf("{\"action\": \"add\", \"identifier\": \"PREVIEW\", \"x\": \"%s\", \"y\": \"%s\", \"width\": \"%s\", \"height\": \"%s\", \"scaler\": \"contain\", \"path\": \"%s\"}\n", border+1, 1, dim[2]-border, ((end-top+1)/num), img) > FIFO_UEBERZUG
+        printf("{\"action\": \"add\", \"identifier\": \"PREVIEW\", \"x\": \"%s\", \"y\": \"%s\", \"width\": \"%s\", \"height\": \"%s\", \"scaler\": \"contain\", \"path\": \"%s\"}\n", border+1, 1, dim[2]-border-1, (end/num), img) > FIFO_UEBERZUG
         close(FIFO_UEBERZUG)
     }
     else {
