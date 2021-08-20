@@ -648,7 +648,6 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                     if (slist != "") {
                         menu_TUI_page(slist, delim)
                         cursor = 1; curpage = 1;
-                        # if (+Narr == +1) { answer = 1 }
                     }
                     break
                 }
@@ -702,7 +701,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                cursor = 1; curpage = (+curpage > +page ? page : curpage);
                break
            }
-           if ( answer == "\r" || answer == "l" || answer ~ /\[C/ ) { answer = Ncursor; break }
+           if ( answer == "\n" || answer == "l" || answer ~ /\[C/ ) { answer = Ncursor; break }
            if ( answer == "a" ) {
                menu_TUI_page(action, RS)
                tmsg = "Choose an action"; bmsg = "Actions"
