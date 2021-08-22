@@ -394,12 +394,12 @@ function key_collect() {
             old_time = time
         }
 
-        gsub(/[\\^$()\[\]|]/, "\\\\&", ans) # escape special char
+        gsub(/[\\^$()\[\]]/, "\\\\&", ans) # escape special char
         if (ans ~ /\033/ && rep == 1) { ans = ""; continue; } # first char of escape seq
         else { key = key ans }
         if (key ~ /[^\x00-\x7f]/) { break } # print non-ascii char
         if (key ~ /^\\\[5$|^\\\[6$$/) { ans = ""; continue; } # PageUp / PageDown
-    } while (ans !~ /[\006\025\033\003\177[:space:][:alnum:]><\}\{.~\/:!?*+-]|"/)
+    } while (ans !~ /[\006\025\033\003\177[:space:][:alnum:]><\}\{.~\/:!?*+-]|"|[|_]/)
     return key
 }
 
@@ -529,10 +529,20 @@ function cmd_mode() {
         else {
             status = sprintf("\033\1332K%s%s", cmd_trigger, reply)
         }
-        printf(status) >> "/dev/stderr" # clear line
+        printf(status) >> "/dev/stderr"
         if (cc < 0) { CUP(dim[1], length(status) + cc - 3) } # adjust cursor
     }
 
+}
+
+function yesno(command) {
+    CUP(dim[1], 1)
+    prompt = sprintf("\033\1332k%s %s (y/n) ", "Really execute command", command)
+    printf(prompt) >> "/dev/stderr"
+    printf "\033\133?25h" >> "/dev/stderr" # show cursor
+    key = key_collect()
+    printf "\033\133?25l" >> "/dev/stderr" # hide cursor
+    if (key ~ /[Yy]/) return 1
 }
 
 function menu_TUI(list, delim, num, tmsg, bmsg) {
@@ -613,25 +623,29 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                 ## cmd mode
                 if (answer ~ /:[^[:cntrl:]*]/) {
                     command = substr(answer, 2)
+                    savecmd = command
                     match(command, /\{\}/)
                     if (RSTART) {
                         post = substr(command, RSTART+RLENGTH+1);
-                        command = substr(command, 1, RSTART-1)
+                        gsub(/["]/, "\\\\&", post) # escape special char
+                        command = substr(command, 1, RSTART-2)
                     }
-                    if (command in cmdalias) command = cmdalias[command]
+                    if (command in cmdalias) { command = cmdalias[command] }
+
+                    if (command ~ /rm.*/) { suc = yesno(command); if (suc == 0) break }
 
                     gsub(/["]/, "\\\\&", command) # escape special char
                     finale()
                     if (isEmpty(selected)) {
-                        system("cd \"" dir "\" && eval \"" command "\" 2>/dev/null")
+                        code = system("cd \"" dir "\" && eval \"" command "\" 2>/dev/null")
                     }
                     else {
                         for (sel in selected) {
                             if (RSTART) {
-                                system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\"\" " post " 2>/dev/null")
+                                code = system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\" " post "\" 2>/dev/null")
                             }
                             else {
-                                system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\"\" 2>/dev/null")
+                                code = system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\"\" 2>/dev/null")
                             }
                         }
                         empty_selected()
@@ -640,7 +654,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
                     list = gen_content(dir)
                     menu_TUI_page(list, delim)
-                    printf("\n%s", command) >> CMDHIST; close(CMDHIST)
+                    if (code > 0) { printf("\n%s", savecmd) >> CMDHIST; close(CMDHIST) }
                     break
                 }
 
