@@ -83,7 +83,7 @@ BEGIN {
        "MISC: \n" \
        "\tr - refresh                   a - actions \n" \
        "\t- - previous directory        ! - spawn shell \n" \
-       "\t? - show keybinds             q - quit \n"
+       "\t? - show keybinds             q - quit \n" \
 
     main();
 }
@@ -281,7 +281,7 @@ function finale() {
     printf "\033\1332J\033\133H" >> "/dev/stderr" # clear screen
     printf "\033\133?7h" >> "/dev/stderr" # line wrap
     printf "\033\1338" >> "/dev/stderr" # restore cursor
-    printf "\033\133?25h" >> "/dev/stderr" # hide cursor
+    printf "\033\133?25h" >> "/dev/stderr" # show cursor
     printf "\033\133?1049l" >> "/dev/stderr" # back from alternate buffer
     system("stty isig icanon echo")
     ENVIRON["LANG"] = LANG; # restore LANG
@@ -621,20 +621,22 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                     if (command in cmdalias) command = cmdalias[command]
 
                     gsub(/["]/, "\\\\&", command) # escape special char
+                    finale()
                     if (isEmpty(selected)) {
-                        system("cd \"" dir "\" && eval \"" command "\" 2>/dev/null &")
+                        system("cd \"" dir "\" && eval \"" command "\" 2>/dev/null")
                     }
                     else {
                         for (sel in selected) {
                             if (RSTART) {
-                                system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\"\" " post " 2>/dev/null &")
+                                system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\"\" " post " 2>/dev/null")
                             }
                             else {
-                                system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\"\" 2>/dev/null &")
+                                system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\"\" 2>/dev/null")
                             }
                         }
                         empty_selected()
                     }
+                    init()
 
                     list = gen_content(dir)
                     menu_TUI_page(list, delim)
@@ -744,18 +746,20 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                    selected[Ncursor] = dir TMP;
                    seldisp[Ncursor] = TMP;
                    selpage[Ncursor] = curpage;
-                   if (+cursor <= +dispnum || +cursor <= +Narr) { cursor++ }
-                   if (+cursor > +dispnum || +cursor > +Narr) { cursor = 1; curpage = ( +curpage == +page ? curpage : curpage + 1 ) }
                    bmsg = disp[Ncursor] " selected"
+                   if (+Narr == 1) { break }
+                   if (+cursor <= +dispnum || +cursor <= +Narr) { cursor++ }
+                   if (+cursor > +dispnum || +cursor > +Narr) { cursor = 1; curpage = ( +curpage == +page ? 1 : curpage + 1 ) }
                    break
                }
                else {
                    delete selected[Ncursor]
                    delete seldisp[Ncursor]
                    delete selpage[Ncursor]
-                   if (+cursor <= +dispnum || +cursor <= +Narr) { cursor++ }
-                   if (+cursor > +dispnum) { cursor = 1; curpage = ( +curpage == +page ? curpage : curpage + 1 ) }
                    bmsg = disp[Ncursor] " cancelled"
+                   if (+Narr == 1) { break }
+                   if (+cursor <= +dispnum || +cursor <= +Narr) { cursor++ }
+                   if (+cursor > +dispnum || +cursor > +Narr) { cursor = 1; curpage = ( +curpage == +page ? 1 : curpage + 1 ) }
                    break
                }
            }

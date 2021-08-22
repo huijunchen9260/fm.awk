@@ -97,3 +97,5 @@ edit `fm.awk`, modify the first configuration section:
 ## TODO
 
 - [x] Image preview (start using ueberzug)
+- [ ] Make preview script be independent
+- [ ] Fix some bugs
