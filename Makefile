@@ -13,12 +13,12 @@ endif
 
 
 all:
-	@echo Run \'make install\' to install fm.awk.
+	@echo "Run \"make install\" to install fm.awk."
 
 dependencies:
 	@echo "Checking optional dependencies..."
 ifndef CHAFA
-	@echo "chafa is missing! Install it to use it's preview images."
+	@echo "chafa is missing! Install it to preview images."
 endif
 ifndef FFMPEGTHUMBNAILER
 	@echo "ffmpegthumbnailer is missing! Install it to preview videos."
@@ -32,12 +32,10 @@ endif
 
 install:	dependencies
 	@mkdir -p $(DESTDIR)$(PREFIX)/bin
-	@cp -p fm.awk $(DESTDIR)$(PREFIX)/bin/fm.awk
-	@chmod 755 $(DESTDIR)$(PREFIX)/bin/fm.awk
-	@ln -sf $(DESTDIR)$(PREFIX)/bin/fm.awk $(DESTDIR)$(PREFIX)/bin/fmawk
+	@install fm.awk $(DESTDIR)$(PREFIX)/bin
+	@ln -sf fm.awk $(DESTDIR)$(PREFIX)/bin/fmawk
 ifeq ($(UEBERZUG_SUPPORT), YES)
-	@cp -p fmawk-ueberzug $(DESTDIR)$(PREFIX)/bin/fmawk-ueberzug
-	@chmod 755 $(DESTDIR)$(PREFIX)/bin/fmawk-ueberzug
+	@install fmawk-ueberzug $(DESTDIR)$(PREFIX)/bin
 endif
 
 uninstall:
