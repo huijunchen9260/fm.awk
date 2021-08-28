@@ -50,13 +50,11 @@ BEGIN {
     #  Actions  #
     #############
 
-    action = "History"
-
-    # action = "History" RS \
-    #      "mv" RS \
-    #      "cp -R" RS \
-    #      "ln -sf" RS \
-    #      "rm -rf"
+    action = "History" RS \
+         "mv" RS \
+         "cp -R" RS \
+         "ln -sf" RS \
+         "rm -rf"
 
     help = "\n" \
        "NUMBERS: \n" \
@@ -742,6 +740,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
             if ( answer == ">" ) { RATIO = (RATIO > 0.8 ? RATIO : RATIO + 0.05); break }
             if ( answer == "<" ) { RATIO = (RATIO < 0.2 ? RATIO : RATIO - 0.05); break }
             if ( answer == "r" ||
+               ( answer == "h" && bmsg == "Actions" ) ||
                ( answer ~ /^[[:digit:]]$/ && (+answer > +Narr || +answer < 1 ) ) ) {
                menu_TUI_page(list, delim)
                empty_selected()
