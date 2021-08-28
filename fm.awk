@@ -50,11 +50,13 @@ BEGIN {
     #  Actions  #
     #############
 
-    action = "History" RS \
-         "mv" RS \
-         "cp -R" RS \
-         "ln -sf" RS \
-         "rm -rf"
+    action = "History"
+
+    # action = "History" RS \
+    #      "mv" RS \
+    #      "cp -R" RS \
+    #      "ln -sf" RS \
+    #      "rm -rf"
 
     help = "\n" \
        "NUMBERS: \n" \
@@ -416,6 +418,19 @@ function cmd_mode() {
             reply = substr(reply, 1, length(reply) + cc - 1) substr(reply, length(reply) + cc + 1);
             split("", comparr, ":")
         }
+        else if (cmd_trigger reply ~ /:.* ></ && key ~ /\t|\[Z/) {
+            bmsg = "Selecting...";
+            while (1) {
+                list = gen_content(dir); delim = "\f"; num = 1; tmsg = dir;
+                menu_TUI(list, delim, num, tmsg, bmsg)
+                gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", result[1])
+                if (result[1] == "../") { gsub(/[^\/]*\/?$/, "", dir); dir = ( dir == "" ? "/" : dir ); continue }
+                else if (result[1] == "./") { tmsg = dir; bmsg = "Browsing"; result[1] = dir; break; }
+                else if (result[1] ~ /.*\/$/) dir = dir result[1]
+                else break
+            }
+            reply = substr(reply, 1, length(reply) - 2) result[1]
+        }
         # path completion: $HOME
         else if (cmd_trigger reply ~ /:cd |:.* / && key == "~") { reply = reply ENVIRON["HOME"] "/" }
         # path completion
@@ -460,7 +475,9 @@ function cmd_mode() {
         else if (cmd_trigger == ":" && key ~ /\t|\[Z/) {
             if (isEmpty(comparr)) {
                 getline cmdhist < CMDHIST; close(CMDHIST);
-                comp = reply; complist = search(cmdhist, "\n", comp, "")
+                comp = reply;
+                gsub(/[\\^$()\[\]\{\}]/, "\\\\&", comp) # escape special char
+                complist = search(cmdhist, "\n", comp, "")
                 gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", complist)
                 Ncomp = split(complist, comparr, "\n")
                 c = ( key == "\t" ? 1 : Ncomp )
@@ -528,6 +545,17 @@ function cmd_mode() {
         }
         else {
             status = sprintf("\033\1332K%s%s", cmd_trigger, reply)
+            # len = length(reply)
+            # lb = ( -cc > dim[2] ? len - dim[2] + cc : len - dim[2] )
+            # rb = ( -cc > dim[2] && lb  ? len + cc : len )
+            # showoff = ( len > dim[2] ? substr(reply, lb, rb) : reply )
+            # status = sprintf("\033\1332K%s%s", cmd_trigger, showoff)
+
+           # if ( (answer == "j" || answer ~ /\[B/) && +cursor <= +dispnum ) { oldCursor = cursor; cursor++; }
+           # if ( (answer == "j" || answer ~ /\[B/) && +cursor > +dispnum  && page > 1 ) { cursor = 1; curpage++; break }
+           # if ( (answer == "k" || answer ~ /\[A/) && +cursor == 1 && curpage > 1 && page > 1 ) { cursor = dispnum; curpage--; break }
+           # if ( (answer == "k" || answer ~ /\[A/) && +cursor > 1 ) { oldCursor = cursor; cursor--; }
+
         }
         printf(status) >> "/dev/stderr"
         if (cc < 0) { CUP(dim[1], length(status) + cc - 3) } # adjust cursor
@@ -537,7 +565,7 @@ function cmd_mode() {
 
 function yesno(command) {
     CUP(dim[1], 1)
-    prompt = sprintf("\033\1332k%s %s (y/n) ", "Really execute command", command)
+    prompt = sprintf("\033\1332k%s %s? (y/n) ", "Really execute command", command)
     printf(prompt) >> "/dev/stderr"
     printf "\033\133?25h" >> "/dev/stderr" # show cursor
     key = key_collect()
@@ -563,8 +591,8 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
         CUP(dim[1] - 2, 1); print bmsg >> "/dev/stderr"
         CUP(dim[1], 1)
         printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: ", Narr, curpage, page >> "/dev/stderr"
-        if (bmsg !~ /Action.*/ && ! isEmpty(selected)) draw_selected()
-        if (bmsg !~ /Action.*/ && PREVIEW == 1) draw_preview(disp[Ncursor])
+        if (bmsg !~ /Action.*|Selecting\.\.\./ && ! isEmpty(selected)) draw_selected()
+        if (bmsg !~ /Action.*|Selecting\.\.\./ && PREVIEW == 1) draw_preview(disp[Ncursor])
 
         while (1) {
 
@@ -588,7 +616,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
                 printf "\033\133?25l" >> "/dev/stderr" # hide cursor
                 if (reply == "\003") { answer = ""; key = ""; reply = ""; break; }
-                answer = answer reply; reply = ""; split("", comparr, ":"); cc = 0; dd = 0;
+                answer = cmd_trigger reply; reply = ""; split("", comparr, ":"); cc = 0; dd = 0;
 
                 ## cd
                 if (answer ~ /:cd .*/) {
@@ -623,7 +651,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                 ## cmd mode
                 if (answer ~ /:[^[:cntrl:]*]/) {
                     command = substr(answer, 2)
-                    savecmd = command
+                    savecmd = command; post = ""
                     match(command, /\{\}/)
                     if (RSTART) {
                         post = substr(command, RSTART+RLENGTH+1);
@@ -632,7 +660,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                     }
                     if (command in cmdalias) { command = cmdalias[command] }
 
-                    if (command ~ /rm.*/) { suc = yesno(command); if (suc == 0) break }
+                    if (command ~ /^rm$|rm .*/) { suc = yesno(command); if (suc == 0) break }
 
                     gsub(/["]/, "\\\\&", command) # escape special char
                     finale()
@@ -641,7 +669,11 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                     }
                     else {
                         for (sel in selected) {
+                            match(post, /\{\}/)
                             if (RSTART) {
+                                post = substr(post, 1, RSTART-1) selected[sel] substr(post, RSTART+RLENGTH)
+                            }
+                            if (post) {
                                 code = system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\" " post "\" 2>/dev/null")
                             }
                             else {
@@ -652,7 +684,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                     }
                     init()
 
-                    list = gen_content(dir)
+                    list = gen_content(dir); tmsg = dir;
                     menu_TUI_page(list, delim)
                     if (code > 0) { printf("\n%s", savecmd) >> CMDHIST; close(CMDHIST) }
                     break
@@ -826,8 +858,8 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
             CUP(top + cursor*num - num, 1);
             printf "%s\033\1337m%s\033\133m", Ncursor ". ", disp[Ncursor] >> "/dev/stderr"
 
-            if (bmsg !~ /Action.*/ && ! isEmpty(selected)) draw_selected()
-            if (bmsg !~ /Action.*/ && PREVIEW == 1) draw_preview(disp[Ncursor])
+            if (bmsg !~ /Action.*|Selecting\.\.\./ && ! isEmpty(selected)) draw_selected()
+            if (bmsg !~ /Action.*|Selecting\.\.\./ && PREVIEW == 1) draw_preview(disp[Ncursor])
 
         }
 
