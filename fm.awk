@@ -103,7 +103,8 @@ function main() {
 
     do {
 
-        list = gen_content(dir)
+        list = ( sind == 1 ? slist : gen_content(dir) )
+        # list = gen_content(dir)
         delim = "\f"; num = 1; tmsg = dir; bmsg = ( bmsg == "" ? "Browsing" : bmsg );
         menu_TUI(list, delim, num, tmsg, bmsg)
         response = result[1]
@@ -294,7 +295,7 @@ function init() {
     printf "\033\1337" >> "/dev/stderr" # save cursor
     printf "\033\133?25l" >> "/dev/stderr" # hide cursor
     printf "\033\1335 q" >> "/dev/stderr" # blinking bar
-    printf "\033\133?7l" >> "/dev/stderr" # line wrap
+    printf "\033\133?7l" >> "/dev/stderr" # line unwrap
     LANG = ENVIRON["LANG"]; # save LANG
     ENVIRON["LANG"] = C; # simplest locale setting
 }
@@ -692,7 +693,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                     slist = search(list, delim, substr(answer, 2), "")
                     if (slist != "") {
                         menu_TUI_page(slist, delim)
-                        cursor = 1; curpage = 1;
+                        cursor = 1; curpage = 1; sind = 1
                     }
                     break
                 }
@@ -739,11 +740,12 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
             if ( answer == ">" ) { RATIO = (RATIO > 0.8 ? RATIO : RATIO + 0.05); break }
             if ( answer == "<" ) { RATIO = (RATIO < 0.2 ? RATIO : RATIO - 0.05); break }
             if ( answer == "r" ||
-               ( answer == "h" && ( bmsg == "Actions" || slist != "" ) ) ||
+               ( answer == "h" && ( bmsg == "Actions" || sind == 1 ) ) ||
                ( answer ~ /^[[:digit:]]$/ && (+answer > +Narr || +answer < 1 ) ) ) {
+               list = gen_content(dir)
+               delim = "\f"; num = 1; tmsg = dir; bmsg = "Browsing"; sind = 0
                menu_TUI_page(list, delim)
                empty_selected()
-               tmsg = dir; bmsg = "Browsing"; slist = ""
                cursor = 1; curpage = (+curpage > +page ? page : curpage);
                break
            }
