@@ -103,7 +103,7 @@ function main() {
 
     do {
 
-        list = ( sind == 1 ? slist : gen_content(dir) )
+        list = ( sind == 1 && bmsg == "Browsing" ? slist : gen_content(dir) )
         # list = gen_content(dir)
         delim = "\f"; num = 1; tmsg = dir; bmsg = ( bmsg == "" ? "Browsing" : bmsg );
         menu_TUI(list, delim, num, tmsg, bmsg)
