@@ -340,7 +340,6 @@ function menu_TUI_page(list, delim) {
     Narr = split(list, disp, delim)
     dispnum = (dispnum <= Narr ? dispnum : Narr)
     move = int(dispnum*0.5)
-    # move = ( dispnum <= Narr ? int(dispnum*0.5) : int(Narr*0.5) )
 
     # generate display content for each page (pagearr)
     for (entry = 1; entry in disp; entry++) {
@@ -575,7 +574,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
     menu_TUI_page(list, delim)
     while (answer !~ /^[[:digit:]]+$|\.\.\//) {
-        oldCursor = 1
+        oldCursor = 1;
 
         ## calculate cursor and Ncursor
         cursor = ( cursor+dispnum*(curpage-1) > Narr ? Narr - dispnum*(curpage-1) : cursor )
@@ -740,11 +739,11 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
             if ( answer == ">" ) { RATIO = (RATIO > 0.8 ? RATIO : RATIO + 0.05); break }
             if ( answer == "<" ) { RATIO = (RATIO < 0.2 ? RATIO : RATIO - 0.05); break }
             if ( answer == "r" ||
-               ( answer == "h" && bmsg == "Actions" ) ||
+               ( answer == "h" && ( bmsg == "Actions" || slist != "" ) ) ||
                ( answer ~ /^[[:digit:]]$/ && (+answer > +Narr || +answer < 1 ) ) ) {
                menu_TUI_page(list, delim)
                empty_selected()
-               tmsg = dir; bmsg = "Browsing"
+               tmsg = dir; bmsg = "Browsing"; slist = ""
                cursor = 1; curpage = (+curpage > +page ? page : curpage);
                break
            }
@@ -792,21 +791,17 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                    seldisp[Ncursor] = TMP;
                    selpage[Ncursor] = curpage;
                    bmsg = disp[Ncursor] " selected"
-                   if (+Narr == 1) { break }
-                   if (+cursor <= +dispnum || +cursor <= +Narr) { cursor++ }
-                   if (+cursor > +dispnum || +cursor > +Narr) { cursor = 1; curpage = ( +curpage == +page ? 1 : curpage + 1 ) }
-                   break
                }
                else {
                    delete selected[Ncursor]
                    delete seldisp[Ncursor]
                    delete selpage[Ncursor]
                    bmsg = disp[Ncursor] " cancelled"
-                   if (+Narr == 1) { break }
-                   if (+cursor <= +dispnum || +cursor <= +Narr) { cursor++ }
-                   if (+cursor > +dispnum || +cursor > +Narr) { cursor = 1; curpage = ( +curpage == +page ? 1 : curpage + 1 ) }
-                   break
                }
+               if (+Narr == 1) { break }
+               if (+cursor <= +dispnum || +cursor <= +Narr) { cursor++ }
+               if (+cursor > +dispnum || +cursor > +Narr) { cursor = 1; curpage = ( +curpage == +page ? 1 : curpage + 1 ) }
+               break
            }
 
            if (answer == "V") {
