@@ -103,7 +103,7 @@ function main() {
 
     do {
 
-        list = ( sind == 1 && bmsg == "Browsing" ? slist : gen_content(dir) )
+        list = ( sind == 1 && openind == 1 ? slist : gen_content(dir) )
         # list = gen_content(dir)
         delim = "\f"; num = 1; tmsg = dir; bmsg = ( bmsg == "" ? "Browsing" : bmsg );
         menu_TUI(list, delim, num, tmsg, bmsg)
@@ -115,7 +115,7 @@ function main() {
         #######################
 
         if (bmsg == "Actions") {
-            if (response == "History") { hist_act(); empty_selected(); response = result[1]; bmsg = "";}
+            if (response == "History") { hist_act(); empty_selected(); sind = 0; response = result[1]; bmsg = "";}
             if (response == "mv" || response == "cp -R" || response == "ln -sf" || response == "rm -rf") {
                 if (isEmpty(selected)) {
                     bmsg = sprintf("\033\13338;5;15m\033\13348;5;9m%s\033\133m", "Error: Nothing Selected")
@@ -129,9 +129,6 @@ function main() {
                             system(act " \"" selected[sel] "\"")
                         }
                     }
-                    empty_selected()
-                    bmsg = ""
-                    continue
                 }
                 else {
                     bmsg = "Action: choosing destination";  act = response
@@ -147,10 +144,10 @@ function main() {
                     for (sel in selected) {
                         system(act " \"" selected[sel] "\" \"" dir "\"")
                     }
-                    empty_selected()
-                    bmsg = ""
-                    continue
                 }
+                empty_selected()
+                bmsg = ""; sind = 0;
+                continue
             }
         }
 
@@ -192,7 +189,7 @@ function main() {
         finale()
         system(OPENER " \"" dir response "\"")
         init()
-        old_dir = ""; parent = "";
+        openind = 1; old_dir = ""; parent = "";
 
     } while (1)
 
@@ -743,7 +740,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                ( answer == "h" && ( bmsg == "Actions" || sind == 1 ) ) ||
                ( answer ~ /^[[:digit:]]$/ && (+answer > +Narr || +answer < 1 ) ) ) {
                list = gen_content(dir)
-               delim = "\f"; num = 1; tmsg = dir; bmsg = "Browsing"; sind = 0
+               delim = "\f"; num = 1; tmsg = dir; bmsg = "Browsing"; sind = 0; openind = 0;
                menu_TUI_page(list, delim)
                empty_selected()
                cursor = 1; curpage = (+curpage > +page ? page : curpage);
