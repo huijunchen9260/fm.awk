@@ -104,7 +104,6 @@ function main() {
     do {
 
         list = ( sind == 1 && openind == 1 ? slist : gen_content(dir) )
-        # list = gen_content(dir)
         delim = "\f"; num = 1; tmsg = dir; bmsg = ( bmsg == "" ? "Browsing" : bmsg );
         menu_TUI(list, delim, num, tmsg, bmsg)
         response = result[1]
@@ -400,7 +399,7 @@ function key_collect() {
     return key
 }
 
-function cmd_mode() {
+function cmd_mode(list, answer) {
 
     cmd_trigger = answer;
     while (key = key_collect()) {
@@ -520,6 +519,7 @@ function cmd_mode() {
         }
 
         if (cmd_trigger == "/") {
+            # list = gen_content(dir)
             slist = search(list, delim, reply, "")
             for (i = top; i <= end; i++) {
                 CUP(i, 1)
@@ -572,6 +572,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
     menu_TUI_page(list, delim)
     while (answer !~ /^[[:digit:]]+$|\.\.\//) {
+
         oldCursor = 1;
 
         ## calculate cursor and Ncursor
@@ -607,7 +608,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                 }
                 printf "\033\133?25h" >> "/dev/stderr" # show cursor
 
-                cmd_mode()
+                cmd_mode(list, answer)
 
                 printf "\033\133?25l" >> "/dev/stderr" # hide cursor
                 if (reply == "\003") { answer = ""; key = ""; reply = ""; break; }
