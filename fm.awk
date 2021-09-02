@@ -145,7 +145,7 @@ function main() {
                     }
                 }
                 empty_selected()
-                bmsg = ""; sind = 0;
+                bmsg = ""; sind = 0; openind = 0;
                 continue
             }
         }
@@ -164,7 +164,7 @@ function main() {
                 gsub(dir, "", parent)
             }
             empty_selected()
-            dir = ( dir == "" ? "/" : dir ); hist = 0
+            dir = ( dir == "" ? "/" : dir ); hist = 0; sind = 0; openind = 0;
             printf("%s\n", dir) >> HISTORY; close(HISTORY)
             continue
         }
@@ -173,6 +173,7 @@ function main() {
             finale()
             system("cd \"" dir "\" && ${SHELL:=/bin/sh}")
             init()
+            sind = 0; openind = 0;
             continue
         }
 
@@ -181,7 +182,7 @@ function main() {
             old_dir = dir
             dir = ( hist == 1 ? response : dir response )
             printf("%s\n", dir) >> HISTORY; close(HISTORY)
-            cursor = 1; curpage = 1; hist = 0
+            cursor = 1; curpage = 1; hist = 0; sind = 0; openind = 0;
             continue
         }
 
