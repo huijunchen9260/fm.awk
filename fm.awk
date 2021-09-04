@@ -960,18 +960,22 @@ function print_preview(img) {
 }
 
 function graphic_preview() {
-    if (DEP_CHAFA && DEP_PDFTOPPM && DEP_FFMPEGTH) {
+    if (DEP_PDFTOPPM && DEP_FFMPEGTH) {
         prevnum = 2.5 * ((end - top) / num)
-        if (path ~ /.*\.pdf/) { # Preview PDF file.
-            system("pdftoppm -jpeg -f 1 -singlefile \"" path "\" \"" CACHE "\" 2>/dev/null")
-            print_preview(CACHE ".jpg")
-        }
-        else if (path ~ /.*\.bmp|.*\.jpg|.*\.jpeg|.*\.png|.*\.xpm|.*\.webp|.*\.gif/) { # Preview image file.
+        if (path ~ /.*\.bmp|.*\.jpg|.*\.jpeg|.*\.png|.*\.xpm|.*\.webp|.*\.gif/) { # Preview image file.
             print_preview(path)
         }
-        else if (path ~ /.*\.avi|.*\.mp4|.*\.wmv|.*\.dat|.*\.3gp|.*\.ogv|.*\.mkv|.*\.mpg|.*\.mpeg|.*\.vob|.*\.fl[icv]|.*\.m2v|.*\.mov|.*\.webm|.*\.ts|.*\.mts|.*\.m4v|.*\.r[am]|.*\.qt|.*\.divx/) { # Preview video file.
-            system("ffmpegthumbnailer -i \"" path "\" -o \"" CACHE ".jpg\" -c jpg -s 0 -q 5 2>/dev/null")
-            print_preview(CACHE ".jpg")
+        else { #Generate image to preview.
+            cmd = "./fmawk-previewer \"" path "\" \"" CACHE "\""
+            temp = ""
+            cmd | getline temp
+            close(cmd)
+            print temp
+            if(length(temp) > 0) print_preview(temp)
+            else {
+                CUP(top, border + 1)
+                printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "Cannot preview file." >> "/dev/stderr"
+            }
         }
     }
     else { # Dependency lost

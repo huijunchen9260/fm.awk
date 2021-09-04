@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+#$1: File to preview
+#$2: Cache path (destination)
+set -e
+if [ -f "$1" ]; then #Ensure path exists first.
+	[ -f "$2.jpg" ] && rm "$2.jpg" > /dev/null #If there's a remaining preview, remove it first (could prevent issues)
+	case "$1" in
+		*.mp4|*.avi|*.wmv|*.3gp|*.ogv|*.mkv|*.mpg|*.mpeg|*.vob|*.mov|*.webm|*.ts|*.mts) #Video file preview.
+			ffmpegthumbnailer -i "$1" -o "$2.jpg" -c jpg -s0 -q5 2>/dev/null
+		;;
+		*.pdf) #PDF preview.
+			pdftoppm -jpeg -f 1 -singlefile "$1" "$2" 2>/dev/null
+		;;
+	esac
+	if [ -f "$2.jpg" ]; then #Confirm destination file.
+		printf "%s" "$2.jpg" #printf is used instead of echo since echo -n is undefined in POSIX. The newline *can* be trimmed in awk, but this should do.
+	fi
+fi
