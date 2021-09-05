@@ -1,0 +1,39 @@
+#!/usr/bin/env sh
+#fm.awk previewer script.
+#$1: File to preview
+#$2: Cache path (destination)
+#$3,$4,$5: Drawing info
+set -e
+_fmawk_preview () {
+	[ -f "$2.jpg" ] && rm "$2.jpg" > /dev/null #If there's a remaining preview, remove it first (could prevent issues)
+	[ -p "$FIFO_UEBERZUG" ] && printf '{"action":"remove","identifier":"PREVIEW"}\n' > "$FIFO_UEBERZUG" #Remove Ueberzug preview if applicable.
+	case "$1" in
+		*.mp4|*.avi|*.wmv|*.3gp|*.ogv|*.mkv|*.mpg|*.mpeg|*.vob|*.mov|*.webm|*.ts|*.mts) #Video file preview.
+			ffmpegthumbnailer -i "$1" -o "$2.jpg" -c jpg -s0 -q5 2>/dev/null
+			fmawk_dest="$2.jpg"
+		;;
+		*.pdf) #PDF preview.
+			apdftoppm -jpeg -f 1 -singlefile "$1" "$2" 2>/dev/null
+			fmawk_dest="$2.jpg"
+		;;
+		*.bmp|*.jpg|*.jpeg|*.png|*.webp|*.gif|*.xmp) #Image preview
+			fmawk_dest="$1"
+		;;
+	esac
+	if [ -f "$fmawk_dest" ]; then #Confirm destination file.
+		if [ -p "$FIFO_UEBERZUG" ]; then #Use Ueberzug.
+			printf '{ "action":"add", "identifier":"PREVIEW", "x":"%s", "y":"%s", "width":"%s", "height":"%s", "scaler":"contain", "path":"%s" }\n' "$3" 1 "$4" "$5" "$fmawk_dest" > "$FIFO_UEBERZUG"
+		else
+			if command -v chafa > /dev/null; then
+				chafa --size "$3x" "$fmawk_dest" 2>/dev/null
+			else
+				printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m" "Chafa not found. Unable to display."
+			fi
+		fi
+	fi
+}
+
+if [ -f "$1" ]; then #Ensure path exists first.
+	_fmawk_preview "$@"
+fi
+unset fmawk_dest
