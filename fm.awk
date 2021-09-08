@@ -187,7 +187,7 @@ function main() {
         }
 
         finale()
-        system(OPENER " \"" dir response "\"")
+        system("cd \"" dir "\" && " OPENER " \"" dir response "\"")
         init()
         openind = 1; old_dir = ""; parent = "";
 
