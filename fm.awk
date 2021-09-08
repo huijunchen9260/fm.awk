@@ -38,14 +38,6 @@ BEGIN {
         cmdalias[key] = cmd
     }
 
-    # Check dependencies
-    DEP_CHAFA    = program_exists("chafa")               #Check for chafa for general image display.
-    DEP_PDFTOPPM = program_exists("pdftoppm")            #Check for pdftoppm for PDF previews.
-    DEP_FFMPEGTH = program_exists("ffmpegthumbnailer")   #Check for ffmpegthumbnailer for video previews.
-    WARN_CHAFA = (DEP_CHAFA) ? "- chafa   : Y " : "- chafa   : N "
-    WARN_PDFTOPPM = (DEP_PDFTOPPM) ? "- pdftoppm: Y " : "- pdftoppm: N "
-    WARN_FFMPEGTH = (DEP_PDFTOPPM) ? "- ffmpegthumbnailer: Y " : "- ffmpegthumbnailer: N "
-
     #############
     #  Actions  #
     #############
@@ -932,56 +924,28 @@ function clean_ueberzug_preview() {
     close(FIFO_UEBERZUG)
 }
 
-function print_preview(img) {
-
-    if (FIFO_UEBERZUG != "") {
-        printf("{\"action\": \"add\", \"identifier\": \"PREVIEW\", \"x\": \"%s\", \"y\": \"%s\", \"width\": \"%s\", \"height\": \"%s\", \"scaler\": \"contain\", \"path\": \"%s\"}\n", border+1, 1, dim[2]-border-1, (end/num), img) > FIFO_UEBERZUG
-        close(FIFO_UEBERZUG)
-    }
-    else {
-        if (+sec > 5) {
-            CUP(top, border + 1)
-            printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "move too fast!" >> "/dev/stderr"
-            return
-        }
-        if (path ~ /.*\.gif/) {
-            printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "image" >> "/dev/stderr"
-            return
-        }
-        cmd = "chafa -s " prevnum "x \"" img "\" 2>/dev/null"
-        cmd | getline fig
-        close(cmd)
-        split(fig, prev, "\n")
-        for (i = 1; i <= ((end - top) / num); i++) {
-            CUP(top + i - 1, border + 1)
-            print prev[i] >> "/dev/stderr"
-        }
-    }
-}
-
 function graphic_preview() {
-    if (DEP_CHAFA && DEP_PDFTOPPM && DEP_FFMPEGTH) {
-        prevnum = 2.5 * ((end - top) / num)
-        if (path ~ /.*\.pdf/) { # Preview PDF file.
-            system("pdftoppm -jpeg -f 1 -singlefile \"" path "\" \"" CACHE "\" 2>/dev/null")
-            print_preview(CACHE ".jpg")
-        }
-        else if (path ~ /.*\.bmp|.*\.jpg|.*\.jpeg|.*\.png|.*\.xpm|.*\.webp|.*\.gif/) { # Preview image file.
-            print_preview(path)
-        }
-        else if (path ~ /.*\.avi|.*\.mp4|.*\.wmv|.*\.dat|.*\.3gp|.*\.ogv|.*\.mkv|.*\.mpg|.*\.mpeg|.*\.vob|.*\.fl[icv]|.*\.m2v|.*\.mov|.*\.webm|.*\.ts|.*\.mts|.*\.m4v|.*\.r[am]|.*\.qt|.*\.divx/) { # Preview video file.
-            system("ffmpegthumbnailer -i \"" path "\" -o \"" CACHE ".jpg\" -c jpg -s 0 -q 5 2>/dev/null")
-            print_preview(CACHE ".jpg")
-        }
+    prevnum = 2.5 * ((end - top) / num)
+    temp = ""
+    if (FIFO_UEBERZUG != "" ){ #Call previewer script with Ueberzug specific info.
+        cmd = "./fmawk-previewer \"" path "\" \"" CACHE "\" \"" border+1 "\" \"" dim[2]-border-1 "\" \"" (end/num) "\""
+    } else { #Call previewer expecting to return stdout (chafa or equivalent)
+        cmd = "./fmawk-previewer \"" path "\" \"" CACHE "\" \"" prevnum "\""
     }
-    else { # Dependency lost
-        warning = sprintf("\033\13338;5;0m\033\13348;5;3m%s\033\133m", "Missing dependencies. Cannot preview file. \n" WARN_CHAFA "\n" WARN_PDFTOPPM "\n" WARN_FFMPEGTH)
-        split(warning, prev, "\n")
+    #Call external previewer
+    cmd | getline temp
+    close(cmd)
+    if (+sec > 5) {
+        CUP(top, border + 1)
+        printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "move too fast!" >> "/dev/stderr"
+        return
+    }
+    if(length(temp) > 0) {
+        split(temp, prev, "\n")
         for (i = 1; i <= ((end - top) / num); i++) {
             CUP(top + i - 1, border + 1)
             print prev[i] >> "/dev/stderr"
         }
-        return
     }
 }
 
