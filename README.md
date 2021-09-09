@@ -97,7 +97,7 @@ edit `fm.awk`, modify the first configuration section:
 ## TODO
 
 - [x] Image preview (start using ueberzug)
-- [ ] Make preview script be independent
+- [x] Make preview script be independent
 - [ ] Make cmd bottom line can be scrollable horizontally even when the string is over the dimension
 - [ ] Eliminate action menu by implementing all of those in cmd mode
 - [ ] Fix some bugs
