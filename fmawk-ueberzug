@@ -11,6 +11,7 @@ if [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ]; then
     fm.awk
 else
     export FIFO_UEBERZUG="$HOME/.cache/fmawk-ueberzug-$$"
+    export FMAWK_PREVIEWER="fmawk-previewer"
     mkfifo "$FIFO_UEBERZUG"
     ueberzug layer -s <"$FIFO_UEBERZUG" -p json &
     exec 3>"$FIFO_UEBERZUG"

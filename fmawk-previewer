@@ -1,31 +1,99 @@
 #!/usr/bin/env sh
 #fm.awk previewer script.
-#$1: File to preview
-#$2: Cache path (destination)
-#$3,$4,$5: Drawing info
+
+path=$1
+cache=$2
+b=$3
+vRange=$4
+top=$5
+prevRange=$6
+
 set -e
+
+batorcat() {
+	if command -v bat > /dev/null 2>&1
+    then
+		bat --color=always --style=plain --pager=never "$1"
+	else
+		cat "$file"
+	fi
+}
+
+_preview_print () {
+    b=$1; e=$2; top=$3; shift 3
+    awk -F"\n" -v b=$b -v e=$e -v top=$top '{i++; printf("\033[%s;%sH%s\n",top+i-1,b,$1); if (i >= e) exit }'
+}
+
 _fmawk_preview () {
-	[ -f "$2.jpg" ] && rm "$2.jpg" > /dev/null #If there's a remaining preview, remove it first (could prevent issues)
+	[ -f "$cache.jpg" ] && rm "$cache.jpg" > /dev/null #If there's a remaining preview, remove it first (could prevent issues)
 	[ -p "$FIFO_UEBERZUG" ] && printf '{"action":"remove","identifier":"PREVIEW"}\n' > "$FIFO_UEBERZUG" #Remove Ueberzug preview if applicable.
-	case "$1" in
+	case "$path" in
 		*.mp4|*.avi|*.wmv|*.3gp|*.ogv|*.mkv|*.mpg|*.mpeg|*.vob|*.mov|*.webm|*.ts|*.mts) #Video file preview.
-			ffmpegthumbnailer -i "$1" -o "$2.jpg" -c jpg -s0 -q5 2>/dev/null
-			fmawk_dest="$2.jpg"
-		;;
+			ffmpegthumbnailer -i "$path" -o "$cache.jpg" -c jpg -s0 -q5 2>/dev/null
+			fmawk_dest="$cache.jpg"
+            ;;
 		*.pdf) #PDF preview.
-			pdftoppm -jpeg -f 1 -singlefile "$1" "$2" 2>/dev/null
-			fmawk_dest="$2.jpg"
+			pdftoppm -jpeg -f 1 -singlefile "$path" "$cache" 2>/dev/null
+			fmawk_dest="$cache.jpg"
+            ;;
+        *.epub)
+            epub-thumbnailer "$path" "$cache" 1024
+			fmawk_dest="$cache.jpg"
 		;;
 		*.bmp|*.jpg|*.jpeg|*.png|*.webp|*.gif|*.xmp) #Image preview
-			fmawk_dest="$1"
-		;;
+			fmawk_dest="$path"
+            ;;
+        *.tgz|*.tar.gz)
+            tar tzf "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            ;;
+        *.tar.bz2|*.tbz2)
+            tar tjf "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            ;;
+        *.tar.txz|*.txz)
+            xz --list "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            ;;
+        *.tar)
+            tar tf "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            ;;
+        *.zip|*.jar|*.war|*.ear|*.oxt)
+            unzip -l "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            ;;
+        *.rar)
+            unrar l "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            ;;
+        *.7z)
+            7z l "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            ;;
+        *.[1-8])
+            man "$path" | col -b | _preview_print "$b" "$vRange" "$top" "$@"
+            ;;
+        *.iso)
+            iso-info --no-header -l "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            ;;
+        *.odt|*.ods|*.odp|*.sxw)
+            odt2txt "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            ;;
+        *.doc)
+            catdoc "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            ;;
+        *.docx)
+            docx2txt "$path" - | _preview_print "$b" "$vRange" "$top" "$@"
+            ;;
+        *.xls|*.xlsx)
+            ssconvert --export-type=Gnumeric_stf:stf_csv "$path" "fd://1" | batorcat --language=csv | _preview_print "$b" "$vRange" "$top" "$@"
+            ;;
+        *.wav|*.mp3|*.flac|*.m4a|*.wma|*.ape|*.ac3|*.og[agx]|*.spx|*.opus|*.as[fx]|*.mka)
+            exiftool "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            ;;
+        *) batorcat "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            ;;
 	esac
 	if [ -f "$fmawk_dest" ]; then #Confirm destination file.
 		if [ -p "$FIFO_UEBERZUG" ]; then #Use Ueberzug.
-			printf '{ "action":"add", "identifier":"PREVIEW", "x":"%s", "y":"%s", "width":"%s", "height":"%s", "scaler":"contain", "path":"%s" }\n' "$3" 1 "$4" "$5" "$fmawk_dest" > "$FIFO_UEBERZUG"
+			printf '{ "action":"add", "identifier":"PREVIEW", "x":"%s", "y":"%s", "width":"%s", "height":"%s", "scaler":"contain", "path":"%s" }\n' "$b" 1 "$prevRange" "$vRange" "$fmawk_dest" > "$FIFO_UEBERZUG"
 		else
 			if command -v chafa > /dev/null; then
-				chafa --size "$3x" "$fmawk_dest" 2>/dev/null
+                chafa --size "$vRangex" "$fmawk_dest" 2>/dev/null | _preview_print "$b" "$vRange" "$top" "$@"
 			else
 				printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m" "Chafa not found. Unable to display."
 			fi
@@ -33,7 +101,7 @@ _fmawk_preview () {
 	fi
 }
 
-if [ -f "$1" ]; then #Ensure path exists first.
+if [ -f "$path" ]; then #Ensure path exists first.
 	_fmawk_preview "$@"
 fi
 unset fmawk_dest

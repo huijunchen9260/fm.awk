@@ -12,6 +12,7 @@ BEGIN {
     CMDHIST = ( ENVIRON["CMDHIST"] == "" ? ( ENVIRON["HOME"] "/.cache/cmdhist" ) : ENVIRON["CMDHIST"] )
     CACHE = ( ENVIRON["CACHE"] == "" ? ( ENVIRON["HOME"] "/.cache/imagecache" ) : ENVIRON["CACHE"] )
     FIFO_UEBERZUG = ENVIRON["FIFO_UEBERZUG"]
+    FMAWK_PREVIEWER = ENVIRON["FMAWK_PREVIEWER"]
     PREVIEW = 0
     RATIO = 0.35
     HIST_MAX = 5000
@@ -267,7 +268,7 @@ function isEmpty(arr) { for (idx in arr) return 0; return 1 }
 ##################
 
 function finale() {
-    clean_ueberzug_preview()
+    clean_preview()
     printf "\033\1332J\033\133H" >> "/dev/stderr" # clear screen
     printf "\033\133?7h" >> "/dev/stderr" # line wrap
     printf "\033\1338" >> "/dev/stderr" # restore cursor
@@ -572,7 +573,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
         cursor = ( cursor+dispnum*(curpage-1) > Narr ? Narr - dispnum*(curpage-1) : cursor )
         Ncursor = cursor+dispnum*(curpage-1)
 
-        clean_ueberzug_preview()
+        clean_preview()
         printf "\033\1332J\033\133H" >> "/dev/stderr" # clear screen and move cursor to 0, 0
         CUP(top, 1); print pagearr[curpage] >> "/dev/stderr"
         CUP(top + cursor*num - num, 1); printf "%s\033\1337m%s\033\133m", Ncursor ". ", disp[Ncursor] >> "/dev/stderr"
@@ -847,7 +848,6 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
             if (bmsg !~ /Action.*|Selecting\.\.\./ && ! isEmpty(selected)) draw_selected()
             if (bmsg !~ /Action.*|Selecting\.\.\./ && PREVIEW == 1) draw_preview(disp[Ncursor])
-
         }
 
     }
@@ -878,13 +878,10 @@ function pager(msg) { # pager to print out stuff and navigate
 
 function draw_preview(item) {
 
+    border = int(dim[2]*RATIO) # for preview
+
     # clear RHS of screen based on border
-    border = int(dim[2]*RATIO)
-    for (i = top; i <= end; i++) {
-        CUP(i, border - 1)
-        printf "\033\133K" >> "/dev/stderr" # clear line
-    }
-    clean_ueberzug_preview()
+    clean_preview()
 
     gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", item)
     path = dir item
@@ -897,10 +894,7 @@ function draw_preview(item) {
         }
     }
     else { # Standard file
-        if (path ~ /.*\.pdf|.*\.bmp|.*\.jpg|.*\.jpeg|.*\.png|.*\.xpm|.*\.webp|.*\.gif|.*\.avi|.*\.mp4|.*\.wmv|.*\.dat|.*\.3gp|.*\.ogv|.*\.mkv|.*\.mpg|.*\.mpeg|.*\.vob|.*\.fl[icv]|.*\.m2v|.*\.mov|.*\.webm|.*\.ts|.*\.mts|.*\.m4v|.*\.r[am]|.*\.qt|.*\.divx/) {
-            graphic_preview()
-        }
-        else {
+        if (FMAWK_PREVIEWER == "") {
             getline content < path
             close(path)
             split(content, prev, "\n")
@@ -914,45 +908,19 @@ function draw_preview(item) {
                 print prev[i] >> "/dev/stderr"
             }
         }
+        else {
+            system(FMAWK_PREVIEWER " \"" path "\" \"" CACHE "\" \"" border+1 "\" \"" ((end - top)/num) "\" \"" top "\" \"" dim[2]-border-1 "\"")
+        }
 
     }
 }
 
-function clean_ueberzug_preview() {
+function clean_preview() {
+    for (i = top; i <= end; i++) {
+        CUP(i, border - 1)
+        printf "\033\133K" >> "/dev/stderr" # clear line
+    }
     if (FIFO_UEBERZUG == "") return
     printf "{\"action\": \"remove\", \"identifier\": \"PREVIEW\"}\n" > FIFO_UEBERZUG
     close(FIFO_UEBERZUG)
-}
-
-function graphic_preview() {
-    prevnum = 2.5 * ((end - top) / num)
-    temp = ""
-    if (FIFO_UEBERZUG != "" ){ #Call previewer script with Ueberzug specific info.
-        cmd = "./fmawk-previewer \"" path "\" \"" CACHE "\" \"" border+1 "\" \"" dim[2]-border-1 "\" \"" (end/num) "\""
-    } else { #Call previewer expecting to return stdout (chafa or equivalent)
-        cmd = "./fmawk-previewer \"" path "\" \"" CACHE "\" \"" prevnum "\""
-    }
-    #Call external previewer
-    cmd | getline temp
-    close(cmd)
-    if (+sec > 5) {
-        CUP(top, border + 1)
-        printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "move too fast!" >> "/dev/stderr"
-        return
-    }
-    if(length(temp) > 0) {
-        split(temp, prev, "\n")
-        for (i = 1; i <= ((end - top) / num); i++) {
-            CUP(top + i - 1, border + 1)
-            print prev[i] >> "/dev/stderr"
-        }
-    }
-}
-
-function program_exists(cmd, temp) { #Check if a program exists in $PATH.
-    #Recent (2008+) POSIX specs ( https://pubs.opengroup.org/onlinepubs/9699919799/utilities/command.html ) specificate this should be a valid method.
-    cmd = "command -v " cmd
-    cmd | getline temp
-    close(cmd)
-    return (length(temp) > 0)
 }
