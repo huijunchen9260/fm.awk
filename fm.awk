@@ -236,27 +236,27 @@ function gen_content(dir) {
           "test -d \"$f\" && printf '\f\033\1331;34m%s\033\133m' \"$f\"/ ; "\
       "done"
 
-    code = cmd | getline list
+    code = cmd | getline dirlist
     close(cmd)
     if (code <= 0) {
-        list = "empty"
+        dirlist = "empty"
     }
     else if (dir != "/") {
         gsub(/[\\.^$(){}\[\]|*+?]/, "\\\\&", dir) # escape special char
-        gsub(dir, "", list)
-        list = substr(list, 2)
+        gsub(dir, "", dirlist)
+        dirlist = substr(dirlist, 2)
     }
     else {
-        Narr = split(list, listarr, "\f")
-        delete listarr[1]
-        list = ""
-        for (entry = 2; entry in listarr; entry++) {
-            sub(/\//, "", listarr[entry])
-            list = list "\f" listarr[entry]
+        Narr = split(dirlist, dirlistarr, "\f")
+        delete dirlistarr[1]
+        dirlist = ""
+        for (entry = 2; entry in dirlistarr; entry++) {
+            sub(/\//, "", dirlistarr[entry])
+            dirlist = dirlist "\f" dirlistarr[entry]
         }
-        list = substr(list, 2)
+        dirlist = substr(dirlist, 2)
     }
-    return list
+    return dirlist
 
 }
 
@@ -318,8 +318,7 @@ function draw_selected() {
 
 function empty_selected() { split("", selected, ":"); split("", seldisp, ":"); split("", selpage, ":"); }
 
-function menu_TUI_page(list, delim) {
-    answer = ""; page = 0; split("", pagearr, ":") # delete saved array
+function dim_setup() {
     cmd = "stty size"
     cmd | getline d
     close(cmd)
@@ -327,10 +326,14 @@ function menu_TUI_page(list, delim) {
     top = 3; bottom = dim[1] - 4;
     fin = bottom - ( bottom - (top - 1) ) % num; end = fin + 1;
     dispnum = (end - top) / num
+}
 
+function menu_TUI_page(list, delim) {
+    answer = ""; page = 0; split("", pagearr, ":") # delete saved array
+    dim_setup()
     Narr = split(list, disp, delim)
     dispnum = (dispnum <= Narr ? dispnum : Narr)
-    move = int(dispnum*0.5)
+    # move = int(dispnum*0.5)
 
     # generate display content for each page (pagearr)
     for (entry = 1; entry in disp; entry++) {
@@ -373,7 +376,7 @@ function key_collect() {
     key = ""; rep = 0
     do {
 
-        cmd = "dd ibs=1 count=1 2>/dev/null"
+        cmd = "trap 'echo WINCH' WINCH; dd ibs=1 count=1 2>/dev/null"
         cmd | getline ans;
         close(cmd)
 
@@ -384,12 +387,17 @@ function key_collect() {
             old_time = time
         }
 
-        gsub(/[\\^$()\[\]]/, "\\\\&", ans) # escape special char
+        gsub(/[\\^\[\]]/, "\\\\&", ans) # escape special char
+        if (ans ~ /.*WINCH/) { # when trap SIGWINCH
+            menu_TUI_page(list, delim)
+            redraw();
+            gsub(/WINCH/, "", ans);
+        }
         if (ans ~ /\033/ && rep == 1) { ans = ""; continue; } # first char of escape seq
         else { key = key ans }
         if (key ~ /[^\x00-\x7f]/) { break } # print non-ascii char
         if (key ~ /^\\\[5$|^\\\[6$$/) { ans = ""; continue; } # PageUp / PageDown
-    } while (ans !~ /[\006\025\033\003\177[:space:][:alnum:]><\}\{.~\/:!?*+-]|"|[|_]/)
+    } while (ans !~ /[\006\025\033\003\177[:space:][:alnum:]><\}\{.~\/:!?*+-]|"|[|_$()]/)
     return key
 }
 
@@ -464,7 +472,7 @@ function cmd_mode(list, answer) {
             if (isEmpty(comparr)) {
                 getline cmdhist < CMDHIST; close(CMDHIST);
                 comp = reply;
-                gsub(/[\\^$()\[\]\{\}]/, "\\\\&", comp) # escape special char
+                # gsub(/[\\^$()\[\]\{\}]/, "\\\\&", comp) # escape special char
                 complist = search(cmdhist, "\n", comp, "")
                 gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", complist)
                 Ncomp = split(complist, comparr, "\n")
@@ -562,6 +570,19 @@ function yesno(command) {
     if (key ~ /[Yy]/) return 1
 }
 
+function redraw() {
+
+    printf "\033\1332J\033\133H" >> "/dev/stderr" # clear screen and move cursor to 0, 0
+    CUP(top, 1); print pagearr[curpage] >> "/dev/stderr"
+    CUP(top + cursor*num - num, 1); printf "%s\033\1337m%s\033\133m", Ncursor ". ", disp[Ncursor] >> "/dev/stderr"
+    CUP(top - 2, 1); print tmsg >> "/dev/stderr"
+    CUP(dim[1] - 2, 1); print bmsg >> "/dev/stderr"
+    CUP(dim[1], 1)
+    printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: ", Narr, curpage, page >> "/dev/stderr"
+    if (bmsg !~ /Action.*|Selecting\.\.\./ && ! isEmpty(selected)) draw_selected()
+    if (bmsg !~ /Action.*|Selecting\.\.\./ && PREVIEW == 1) draw_preview(disp[Ncursor])
+}
+
 function menu_TUI(list, delim, num, tmsg, bmsg) {
 
     menu_TUI_page(list, delim)
@@ -574,15 +595,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
         Ncursor = cursor+dispnum*(curpage-1)
 
         clean_preview()
-        printf "\033\1332J\033\133H" >> "/dev/stderr" # clear screen and move cursor to 0, 0
-        CUP(top, 1); print pagearr[curpage] >> "/dev/stderr"
-        CUP(top + cursor*num - num, 1); printf "%s\033\1337m%s\033\133m", Ncursor ". ", disp[Ncursor] >> "/dev/stderr"
-        CUP(top - 2, 1); print tmsg >> "/dev/stderr"
-        CUP(dim[1] - 2, 1); print bmsg >> "/dev/stderr"
-        CUP(dim[1], 1)
-        printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: ", Narr, curpage, page >> "/dev/stderr"
-        if (bmsg !~ /Action.*|Selecting\.\.\./ && ! isEmpty(selected)) draw_selected()
-        if (bmsg !~ /Action.*|Selecting\.\.\./ && PREVIEW == 1) draw_preview(disp[Ncursor])
+        redraw()
 
         while (1) {
 

@@ -89,6 +89,7 @@ edit `fm.awk`, modify the first configuration section:
     - e.g., After selection, `:chmod +x` to give execution permission on selected entries.
 - `:cmd {} destination` to replace `{}` with each selected item and execute the whole command.
     - e.g., After selection, `:mv {} ~` will move selected item to `$HOME` directory.
+- `:cmd ><` and type tab will leads to Selection mode for directory. After choosing directory by choosing `./`, the `><` part in the command line will be replaced by the directory chosen.
 - `cmd` can be shell alias (`bash` and `zsh` confirmed. `fish` not sure).
 - tab completion on `:cd ` and search (`/`)
 - tab completion on command line mode based on command line history.
@@ -98,6 +99,7 @@ edit `fm.awk`, modify the first configuration section:
 
 - [x] Image preview (start using ueberzug)
 - [x] Make preview script be independent
+- [x] Able to redraw by `SIGWINCH`.
 - [ ] Make cmd bottom line can be scrollable horizontally even when the string is over the dimension
 - [ ] Eliminate action menu by implementing all of those in cmd mode
 - [ ] Fix some bugs
