@@ -388,7 +388,8 @@ function key_collect() {
         }
 
         gsub(/[\\^\[\]]/, "\\\\&", ans) # escape special char
-        if (ans ~ /.*WINCH/) { # when trap SIGWINCH
+        if (ans ~ /.*WINCH/) { # trap SIGWINCH
+            cursor = 1; curpage = 1;
             menu_TUI_page(list, delim)
             redraw();
             gsub(/WINCH/, "", ans);
