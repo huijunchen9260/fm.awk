@@ -55,6 +55,9 @@ _fmawk_preview () {
         *.tar)
             tar tf "$path" | _preview_print "$b" "$vRange" "$top" "$@"
             ;;
+        *.gz)
+            gunzip -l "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            ;;
         *.zip|*.jar|*.war|*.ear|*.oxt)
             unzip -l "$path" | _preview_print "$b" "$vRange" "$top" "$@"
             ;;
