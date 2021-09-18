@@ -41,7 +41,8 @@ PREVIEW:
 MISC:
 	r - refresh                   a - actions
 	- - previous directory        ! - spawn shell
-	? - show keybinds             q - quit
+	. - toggle hidden             ? - show keybinds
+	q - quit
 ```
 
 ## Actions
