@@ -1,4 +1,4 @@
-#!/usr/bin/nawk -f
+#!/usr/bin/awk -f
 
 BEGIN {
 
@@ -14,6 +14,7 @@ BEGIN {
     FIFO_UEBERZUG = ENVIRON["FIFO_UEBERZUG"]
     FMAWK_PREVIEWER = ENVIRON["FMAWK_PREVIEWER"]
     PREVIEW = 0
+    HIDDEN = 0
     RATIO = 0.35
     HIST_MAX = 5000
     SUBSEP = ","
@@ -78,7 +79,8 @@ BEGIN {
        "MISC: \n" \
        "\tr - refresh                   a - actions \n" \
        "\t- - previous directory        ! - spawn shell \n" \
-       "\t? - show keybinds             q - quit \n" \
+       "\t. - toggle hidden             ? - show keybinds\n" \
+       "\tq - quit \n" \
 
     main();
 }
@@ -98,7 +100,7 @@ function main() {
 
     do {
 
-        list = ( sind == 1 && openind == 1 ? slist : gen_content(dir) )
+        list = ( sind == 1 && openind == 1 ? slist : gen_content(dir, HIDDEN) )
         delim = "\f"; num = 1; tmsg = dir; bmsg = ( bmsg == "" ? "Browsing" : bmsg );
         menu_TUI(list, delim, num, tmsg, bmsg)
         response = result[1]
@@ -127,7 +129,7 @@ function main() {
                 else {
                     bmsg = "Action: choosing destination";  act = response
                     while (1) {
-                        list = gen_content(dir); delim = "\f"; num = 1; tmsg = dir;
+                        list = gen_content(dir, HIDDEN); delim = "\f"; num = 1; tmsg = dir;
                         menu_TUI(list, delim, num, tmsg, bmsg)
                         gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", result[1])
                         if (result[1] == "../") { gsub(/[^\/]*\/?$/, "", dir); dir = ( dir == "" ? "/" : dir ); continue }
@@ -228,15 +230,29 @@ function hist_clean() {
     }
 }
 
-function gen_content(dir) {
+function gen_content(dir, HIDDEN) {
 
-    cmd = "for f in \"" dir "\"* \"" dir "\".* ; do "\
-          "test -L \"$f\" && test -f \"$f\" && printf '\f\033\1331;36m%s\033\133m' \"$f\" && continue; "\
-          "test -L \"$f\" && test -d \"$f\" && printf '\f\033\1331;36m%s\033\133m' \"$f\"/ && continue; "\
-          "test -x \"$f\" && test -f \"$f\" && printf '\f\033\1331;32m%s\033\133m' \"$f\" && continue; "\
-          "test -f \"$f\" && printf '\f%s' \"$f\" && continue; "\
-          "test -d \"$f\" && printf '\f\033\1331;34m%s\033\133m' \"$f\"/ ; "\
-      "done"
+    if (HIDDEN == 0) {
+        cmd = "for f in \"" dir "\"*; do "\
+                  "test -L \"$f\" && test -f \"$f\" && symFileList=\"$symFileList$(printf '\f\033\1331;36m%s\033\133m' \"$f\")\" && continue; "\
+                  "test -L \"$f\" && test -d \"$f\" && symDirList=\"$symDirList$(printf '\f\033\1331;36m%s\033\133m' \"$f\"/)\" && continue; "\
+                  "test -x \"$f\" && test -f \"$f\" && execList=\"$execList$(printf '\f\033\1331;32m%s\033\133m' \"$f\")\" && continue; "\
+                  "test -f \"$f\" && fileList=\"$fileList$(printf '\f%s' \"$f\")\" && continue; "\
+                  "test -d \"$f\" && dirList=\"$dirList$(printf '\f\033\1331;34m%s\033\133m' \"$f\"/)\" ; "\
+              "done; "\
+              "printf '%s' \"$dirList\" \"$symDirList\" \"$fileList\" \"$execList\" \"$symFileList\""
+
+    }
+    else if (HIDDEN == 1) {
+        cmd = "for f in \"" dir "\"* \"" dir "\".* ; do "\
+                  "test -L \"$f\" && test -f \"$f\" && symFileList=\"$symFileList$(printf '\f\033\1331;36m%s\033\133m' \"$f\")\" && continue; "\
+                  "test -L \"$f\" && test -d \"$f\" && symDirList=\"$symDirList$(printf '\f\033\1331;36m%s\033\133m' \"$f\"/)\" && continue; "\
+                  "test -x \"$f\" && test -f \"$f\" && execList=\"$execList$(printf '\f\033\1331;32m%s\033\133m' \"$f\")\" && continue; "\
+                  "test -f \"$f\" && fileList=\"$fileList$(printf '\f%s' \"$f\")\" && continue; "\
+                  "test -d \"$f\" && dirList=\"$dirList$(printf '\f\033\1331;34m%s\033\133m' \"$f\"/)\" ; "\
+              "done; "\
+              "printf '%s' \"$dirList\" \"$symDirList\" \"$fileList\" \"$execList\" \"$symFileList\""
+    }
 
     code = cmd | getline dirlist
     close(cmd)
@@ -336,11 +352,10 @@ function menu_TUI_page(list, delim) {
     dim_setup()
     Narr = split(list, disp, delim)
     dispnum = (dispnum <= Narr ? dispnum : Narr)
-    # move = int(dispnum*0.5)
 
     # generate display content for each page (pagearr)
     for (entry = 1; entry in disp; entry++) {
-        if ((+entry) % (+dispnum) == 1) { # if first item in each page
+        if ((+entry) % (+dispnum) == 1 || Narr == 1) { # if first item in each page
             pagearr[++page] = entry ". " disp[entry]
         }
         else {
@@ -350,6 +365,7 @@ function menu_TUI_page(list, delim) {
             cursor = entry - dispnum*(page - 1); curpage = page
         }
     }
+
 }
 
 function search(list, delim, str, mode) {
@@ -394,7 +410,7 @@ function key_collect(pagerind) {
         if (ans ~ /.*WINCH/ && pagerind == 0) { # trap SIGWINCH
             cursor = 1; curpage = 1;
             menu_TUI_page(list, delim)
-            redraw();
+            redraw(tmsg, bmsg)
             gsub(/WINCH/, "", ans);
         }
         if (ans ~ /\033/ && rep == 1) { ans = ""; continue; } # first char of escape seq
@@ -418,31 +434,56 @@ function cmd_mode(list, answer) {
             reply = substr(reply, 1, length(reply) + cc - 1) substr(reply, length(reply) + cc + 1);
             split("", comparr, ":")
         }
-        else if (cmd_trigger reply ~ /:.* ></ && key ~ /\t|\[Z/) {
-            bmsg = "Selecting...";
-            while (1) {
-                list = gen_content(dir); delim = "\f"; num = 1; tmsg = dir;
-                menu_TUI(list, delim, num, tmsg, bmsg)
-                gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", result[1])
-                if (result[1] == "../") { gsub(/[^\/]*\/?$/, "", dir); dir = ( dir == "" ? "/" : dir ); continue }
-                else if (result[1] == "./") { tmsg = dir; bmsg = "Browsing"; result[1] = dir; break; }
-                else if (result[1] ~ /.*\/$/) dir = dir result[1]
-                else break
-            }
-            reply = substr(reply, 1, length(reply) - 2) result[1]
-        }
+        # else if (cmd_trigger reply ~ /:.* ></ && key ~ /\t|\[Z/) {
+        #     bmsg = "Selecting...";
+        #     while (1) {
+        #         list = gen_content(dir, HIDDEN); delim = "\f"; num = 1; tmsg = dir;
+        #         menu_TUI(list, delim, num, tmsg, bmsg)
+        #         gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", result[1])
+        #         if (result[1] == "../") { gsub(/[^\/]*\/?$/, "", dir); dir = ( dir == "" ? "/" : dir ); continue }
+        #         else if (result[1] == "./") { tmsg = dir; bmsg = "Browsing"; result[1] = dir; break; }
+        #         else if (result[1] ~ /.*\/$/) dir = dir result[1]
+        #         else break
+        #     }
+        #     reply = substr(reply, 1, length(reply) - 2) result[1]
+        # }
         # path completion: $HOME
         else if (cmd_trigger reply ~ /:cd |:.* / && key == "~") { reply = reply ENVIRON["HOME"] "/" }
+        # path completion: pwd
+        else if (cmd_trigger reply ~ /:cd \.\/|:.* \.\// && key ~ /\t|\[Z/) { gsub(/\.\//, "", reply); reply = reply dir }
+        # else if (cmd_trigger reply ~ /:cd \.\/|:.* .*\.\.\// && key ~ /\t|\[Z/) {
+
+        #     tmpdir = dir
+        #     while (compdir ~ /^\.\.\/.*/) { # relative path
+        #         gsub(/[^\/]*\/?$/, "", tmpdir)
+        #         gsub(/^\.\.\//, "", compdir)
+        #         tmpdir = ( tmpdir == "" ? "/" : tmpdir )
+        #     }
+        #     compdir = tmpdir
+
+        # }
         # path completion
-        else if (cmd_trigger reply ~ /:cd .*|:.* \/.*/ && key ~ /\t|\[Z/) { # Tab / Shift-Tab
+        else if (cmd_trigger reply ~ /:cd .*|:.* \.?\.?\// && key ~ /\t|\[Z/) { # Tab / Shift-Tab
             cc = 0; dd = 0;
             if (isEmpty(comparr)) {
                 comp = reply;
                 if (cmd_trigger reply ~ /:cd .*/) gsub(/cd /, "", comp)
                 else {
-                    match(comp, /.* \//)
-                    cmd_run = substr(comp, RSTART, RLENGTH-1)
-                    comp = substr(comp, RLENGTH)
+                    if (comp ~ /.* \.\.\//) {
+                        match(comp, /.* \.\.\//)
+                        cmd_run = substr(comp, RSTART, RLENGTH-3)
+                        comp = substr(comp, RLENGTH-2)
+                    }
+                    if (comp ~ /.* \.\//) {
+                        match(comp, /.* \.\//)
+                        cmd_run = substr(comp, RSTART, RLENGTH-2)
+                        comp = substr(comp, RLENGTH-1)
+                    }
+                    if (comp ~ /.* \//) {
+                        match(comp, /.* \//)
+                        cmd_run = substr(comp, RSTART, RLENGTH-1)
+                        comp = substr(comp, RLENGTH)
+                    }
                 }
                 compdir = comp;
                 if (compdir ~ /^\.\.\/.*/) {
@@ -455,11 +496,12 @@ function cmd_mode(list, answer) {
                     compdir = tmpdir
                 }
                 else {
-                    gsub(/[^\/]*\/?$/, "", compdir); gsub(compdir, "", comp)
+                    gsub(/[^\/]*\/?$/, "", compdir);
+                    gsub(compdir, "", comp)
                 }
                 compdir = (compdir == "" ? dir : compdir);
                 tmplist = gen_content(compdir)
-                complist = search(tmplist, delim, comp, "dir")
+                complist = ( cmd_trigger reply ~ /:cd .*/ ? search(tmplist, delim, comp, "dir") : search(tmplist, delim, comp, "") )
                 gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", complist)
                 Ncomp = split(complist, comparr, delim)
                 c = ( key == "\t" ? 1 : Ncomp )
@@ -525,7 +567,7 @@ function cmd_mode(list, answer) {
         }
 
         if (cmd_trigger == "/") {
-            # list = gen_content(dir)
+            # list = gen_content(dir, HIDDEN)
             slist = search(list, delim, reply, "")
             for (i = top; i <= end; i++) {
                 CUP(i, 1)
@@ -574,7 +616,7 @@ function yesno(command) {
     if (key ~ /[Yy]/) return 1
 }
 
-function redraw(bmsg) {
+function redraw(tmsg, bmsg) {
 
     printf "\033\1332J\033\133H" >> "/dev/stderr" # clear screen and move cursor to 0, 0
     CUP(top, 1); print pagearr[curpage] >> "/dev/stderr"
@@ -599,7 +641,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
         Ncursor = cursor+dispnum*(curpage-1)
 
         clean_preview()
-        redraw(bmsg)
+        redraw(tmsg, bmsg)
 
         while (1) {
 
@@ -641,7 +683,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                         dir = ( answer ~ /.*\/$/ || answer == "" ? dir answer : dir answer "/" )
                     }
                     # empty_selected()
-                    tmplist = gen_content(dir)
+                    tmplist = gen_content(dir, HIDDEN)
                     if (tmplist == "empty") {
                         dir = old_dir
                         bmsg = sprintf("\033\13338;5;15m\033\13348;5;9m%s\033\133m", "Error: Path Not Exist")
@@ -691,7 +733,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                     }
                     init()
 
-                    list = gen_content(dir); tmsg = dir;
+                    list = gen_content(dir, HIDDEN); tmsg = dir;
                     menu_TUI_page(list, delim)
                     if (code > 0) { printf("\n%s", savecmd) >> CMDHIST; close(CMDHIST) }
                     break
@@ -725,7 +767,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                 finale()
                 system("cd \"" dir "\" && ${SHELL:=/bin/sh}")
                 init()
-                list = gen_content(dir)
+                list = gen_content(dir, HIDDEN)
                 menu_TUI_page(list, delim)
                 break
             }
@@ -733,7 +775,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
             if (answer == "-") {
                 if (old_dir == "") break
                 TMP = dir; dir = old_dir; old_dir = TMP;
-                list = gen_content(dir)
+                list = gen_content(dir, HIDDEN)
                 menu_TUI_page(list, delim)
                 tmsg = dir; bmsg = "Browsing"
                 cursor = 1; curpage = (+curpage > +page ? page : curpage);
@@ -748,10 +790,11 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
             if ( answer == "v" ) { PREVIEW = (PREVIEW == 1 ? 0 : 1); break }
             if ( answer == ">" ) { RATIO = (RATIO > 0.8 ? RATIO : RATIO + 0.05); break }
             if ( answer == "<" ) { RATIO = (RATIO < 0.2 ? RATIO : RATIO - 0.05); break }
-            if ( answer == "r" ||
+            if ( answer == "r" || answer == "." ||
                ( answer == "h" && ( bmsg == "Actions" || sind == 1 ) ) ||
                ( answer ~ /^[[:digit:]]$/ && (+answer > +Narr || +answer < 1 ) ) ) {
-               list = gen_content(dir)
+               if (answer == ".") { HIDDEN = (HIDDEN == 1 ? 0 : 1); }
+               list = gen_content(dir, HIDDEN)
                delim = "\f"; num = 1; tmsg = dir; bmsg = "Browsing"; sind = 0; openind = 0;
                menu_TUI_page(list, delim)
                empty_selected()
