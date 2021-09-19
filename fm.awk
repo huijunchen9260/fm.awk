@@ -45,11 +45,12 @@ BEGIN {
     #  Actions  #
     #############
 
-    action = "History" RS \
-         "mv" RS \
-         "cp -R" RS \
-         "ln -sf" RS \
-         "rm -rf"
+    # action = "History" RS \
+    #      "mv" RS \
+    #      "cp -R" RS \
+    #      "ln -sf" RS \
+    #      "rm -rf"
+    action = "History"
 
     help = "\n" \
        "NUMBERS: \n" \
@@ -111,40 +112,40 @@ function main() {
         #######################
 
         if (bmsg == "Actions") {
-            if (response == "History") { hist_act(); empty_selected(); sind = 0; response = result[1]; bmsg = "";}
-            if (response == "mv" || response == "cp -R" || response == "ln -sf" || response == "rm -rf") {
-                if (isEmpty(selected)) {
-                    bmsg = sprintf("\033\13338;5;15m\033\13348;5;9m%s\033\133m", "Error: Nothing Selected")
-                }
-                else if (response == "rm -rf") {
-                    act = response
-                    list = "Yes" delim "No"; tmsg = "Execute " response "? "; bmsg = "Action: " response
-                    menu_TUI(list, delim, num, tmsg, bmsg)
-                    if (result[1] == "Yes") {
-                        for (sel in selected) {
-                            system(act " \"" selected[sel] "\"")
-                        }
-                    }
-                }
-                else {
-                    bmsg = "Action: choosing destination";  act = response
-                    while (1) {
-                        list = gen_content(dir, HIDDEN); delim = "\f"; num = 1; tmsg = dir;
-                        menu_TUI(list, delim, num, tmsg, bmsg)
-                        gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", result[1])
-                        if (result[1] == "../") { gsub(/[^\/]*\/?$/, "", dir); dir = ( dir == "" ? "/" : dir ); continue }
-                        if (result[1] == "./") { bmsg = "Browsing"; break; }
-                        if (result[1] == "History") { hist_act(); dir = result[1]; continue; }
-                        if (result[1] ~ /.*\/$/) dir = dir result[1]
-                    }
-                    for (sel in selected) {
-                        system(act " \"" selected[sel] "\" \"" dir "\"")
-                    }
-                }
-                empty_selected()
-                bmsg = ""; sind = 0; openind = 0;
-                continue
-            }
+            if (response == "History") { hist_act(); sind = 0; response = result[1]; bmsg = "";}
+            # if (response == "mv" || response == "cp -R" || response == "ln -sf" || response == "rm -rf") {
+            #     if (isEmpty(selected)) {
+            #         bmsg = sprintf("\033\13338;5;15m\033\13348;5;9m%s\033\133m", "Error: Nothing Selected")
+            #     }
+            #     else if (response == "rm -rf") {
+            #         act = response
+            #         list = "Yes" delim "No"; tmsg = "Execute " response "? "; bmsg = "Action: " response
+            #         menu_TUI(list, delim, num, tmsg, bmsg)
+            #         if (result[1] == "Yes") {
+            #             for (sel in selected) {
+            #                 system(act " \"" selected[sel] "\"")
+            #             }
+            #         }
+            #     }
+            #     else {
+            #         bmsg = "Action: choosing destination";  act = response
+            #         while (1) {
+            #             list = gen_content(dir, HIDDEN); delim = "\f"; num = 1; tmsg = dir;
+            #             menu_TUI(list, delim, num, tmsg, bmsg)
+            #             gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", result[1])
+            #             if (result[1] == "../") { gsub(/[^\/]*\/?$/, "", dir); dir = ( dir == "" ? "/" : dir ); continue }
+            #             if (result[1] == "./") { bmsg = "Browsing"; break; }
+            #             if (result[1] == "History") { hist_act(); dir = result[1]; continue; }
+            #             if (result[1] ~ /.*\/$/) dir = dir result[1]
+            #         }
+            #         for (sel in selected) {
+            #             system(act " \"" selected[sel] "\" \"" dir "\"")
+            #         }
+            #     }
+            #     empty_selected()
+            #     bmsg = ""; sind = 0; openind = 0;
+            #     continue
+            # }
         }
 
         ########################
