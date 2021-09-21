@@ -5,12 +5,6 @@ FFMPEGTHUMBNAILER	:=	$(shell command -v ffmpegthumbnailer 2>/dev/null)
 PDFTOPPM			:=	$(shell command -v pdftoppm 2>/dev/null)
 UEBERZUG			:=	$(shell command -v ueberzug 2>/dev/null)
 
-ifdef $(UEBERZUG)
-UEBERZUG_SUPPORT	?=	YES
-else
-UEBERZUG_SUPPORT	?=	NO
-endif
-
 
 all:
 	@echo "Run \"make install\" to install fm.awk."
@@ -33,14 +27,10 @@ endif
 install:	dependencies
 	@mkdir -p $(DESTDIR)$(PREFIX)/bin
 	@install fm.awk $(DESTDIR)$(PREFIX)/bin
-	@ln -sf fm.awk $(DESTDIR)$(PREFIX)/bin/fmawk
-ifeq ($(UEBERZUG_SUPPORT), YES)
-	@install fmawk-ueberzug $(DESTDIR)$(PREFIX)/bin
-endif
+	@install fmawk $(DESTDIR)$(PREFIX)/bin
+	@install fmawk-previewer $(DESTDIR)$(PREFIX)/bin
 
 uninstall:
 	@rm -rf $(DESTDIR)$(PREFIX)/bin/fm.awk
 	@rm -rf $(DESTDIR)$(PREFIX)/bin/fmawk
-ifeq ($(UEBERZUG_SUPPORT), YES)
-	@rm -rf $(DESTDIR)$(PREFIX)/bin/fmawk-ueberzug
-endif
+	@rm -rf $(DESTDIR)$(PREFIX)/bin/fmawk-previewer
