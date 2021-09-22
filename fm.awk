@@ -68,10 +68,15 @@ BEGIN {
        "MODES: \n" \
        "\t/ - search \n"  \
        "\t: - commandline mode \n"  \
+       "\t    commandline mode special function: \n" \
+       "\t        {}: represent selected files/directories\n" \
+       "\t        tab completion on path: start with ' /', use tab to complete on that path \n" \
+       "\t        tab completion on cmd: completion based on command history \n" \
+       "\t            ><: enter selecting mode for directory (choose ./ to confirm destination)\n" \
        "\n" \
        "SELECTION: \n" \
        "\t␣ - bulk (de-)selection       S - bulk (de-)selection all  \n"  \
-       "\ts - show selected" \
+       "\ts - show selected\n" \
        "\n" \
        "PREVIEW: \n" \
        "\tv - toggle preview \n"  \
@@ -435,34 +440,23 @@ function cmd_mode(list, answer) {
             reply = substr(reply, 1, length(reply) + cc - 1) substr(reply, length(reply) + cc + 1);
             split("", comparr, ":")
         }
-        # else if (cmd_trigger reply ~ /:.* ></ && key ~ /\t|\[Z/) {
-        #     bmsg = "Selecting...";
-        #     while (1) {
-        #         list = gen_content(dir, HIDDEN); delim = "\f"; num = 1; tmsg = dir;
-        #         menu_TUI(list, delim, num, tmsg, bmsg)
-        #         gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", result[1])
-        #         if (result[1] == "../") { gsub(/[^\/]*\/?$/, "", dir); dir = ( dir == "" ? "/" : dir ); continue }
-        #         else if (result[1] == "./") { tmsg = dir; bmsg = "Browsing"; result[1] = dir; break; }
-        #         else if (result[1] ~ /.*\/$/) dir = dir result[1]
-        #         else break
-        #     }
-        #     reply = substr(reply, 1, length(reply) - 2) result[1]
-        # }
+        else if (cmd_trigger reply ~ /:.* ></ && key ~ /\t|\[Z/) {
+            HIDDEN = 1
+            bmsg = "Selecting...";
+            while (1) {
+                list = gen_content(dir, HIDDEN); delim = "\f"; num = 1; tmsg = dir;
+                menu_TUI(list, delim, num, tmsg, bmsg)
+                gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", result[1])
+                if (result[1] == "../") { gsub(/[^\/]*\/?$/, "", dir); dir = ( dir == "" ? "/" : dir ); continue }
+                else if (result[1] == "./") { tmsg = dir; bmsg = "Browsing"; result[1] = dir; break; }
+                else if (result[1] ~ /.*\/$/) dir = dir result[1]
+                else break
+            }
+            reply = substr(reply, 1, length(reply) - 2) result[1]
+            HIDDEN = 0
+        }
         # path completion: $HOME
         else if (cmd_trigger reply ~ /:cd |:.* / && key == "~") { reply = reply ENVIRON["HOME"] "/" }
-        # path completion: pwd
-        else if (cmd_trigger reply ~ /:cd \.\/|:.* \.\// && key ~ /\t|\[Z/) { gsub(/\.\//, "", reply); reply = reply dir }
-        # else if (cmd_trigger reply ~ /:cd \.\/|:.* .*\.\.\// && key ~ /\t|\[Z/) {
-
-        #     tmpdir = dir
-        #     while (compdir ~ /^\.\.\/.*/) { # relative path
-        #         gsub(/[^\/]*\/?$/, "", tmpdir)
-        #         gsub(/^\.\.\//, "", compdir)
-        #         tmpdir = ( tmpdir == "" ? "/" : tmpdir )
-        #     }
-        #     compdir = tmpdir
-
-        # }
         # path completion
         else if (cmd_trigger reply ~ /:cd .*|:.* \.?\.?\// && key ~ /\t|\[Z/) { # Tab / Shift-Tab
             cc = 0; dd = 0;
@@ -589,18 +583,10 @@ function cmd_mode(list, answer) {
         }
         else {
             status = sprintf("\033\1332K%s%s", cmd_trigger, reply)
-            # len = length(reply)
-            # lb = ( -cc > dim[2] ? len - dim[2] + cc : len - dim[2] )
-            # rb = ( -cc > dim[2] && lb  ? len + cc : len )
-            # showoff = ( len > dim[2] ? substr(reply, lb, rb) : reply )
-            # status = sprintf("\033\1332K%s%s", cmd_trigger, showoff)
-
-           # if ( (answer == "j" || answer ~ /\[B/) && +cursor <= +dispnum ) { oldCursor = cursor; cursor++; }
-           # if ( (answer == "j" || answer ~ /\[B/) && +cursor > +dispnum  && page > 1 ) { cursor = 1; curpage++; break }
-           # if ( (answer == "k" || answer ~ /\[A/) && +cursor == 1 && curpage > 1 && page > 1 ) { cursor = dispnum; curpage--; break }
-           # if ( (answer == "k" || answer ~ /\[A/) && +cursor > 1 ) { oldCursor = cursor; cursor--; }
+            showtext = substr(status, length(status) - dim[2] - 1 + cc, length(status) + cc)
 
         }
+        # printf(showtext) >> "/dev/stderr"
         printf(status) >> "/dev/stderr"
         if (cc < 0) { CUP(dim[1], length(status) + cc - 3) } # adjust cursor
     }
@@ -609,8 +595,7 @@ function cmd_mode(list, answer) {
 
 function yesno(command) {
     CUP(dim[1], 1)
-    prompt = sprintf("\033\1332k%s %s? (y/n) ", "Really execute command", command)
-    printf(prompt) >> "/dev/stderr"
+    printf("\033\1332k%s %s? (y/n) ", "Really execute command", command) >> "/dev/stderr"
     printf "\033\133?25h" >> "/dev/stderr" # show cursor
     key = key_collect(pagerind)
     printf "\033\133?25l" >> "/dev/stderr" # hide cursor
@@ -938,7 +923,7 @@ function pager(msg) { # pager to print out stuff and navigate
 
     pagerind = 1
     while (key = key_collect(pagerind)) {
-        if (key == "\003" || key == "\033" || key == "q") break
+        if (key == "\003" || key == "\033" || key == "q" || key == "h") break
         if ((key == "j" || key ~ /\[B/) && i < Nmsgarr) { printf "\033\133%d;H\n", Npager >> "/dev/stderr"; printf msgarr[i++] >> "/dev/stderr" }
         if ((key == "k" || key ~ /\[A/) && i > dim[1] + 1) { printf "\033\133H\033\133L" >> "/dev/stderr"; i--; printf msgarr[i-dim[1]] >> "/dev/stderr" }
     }

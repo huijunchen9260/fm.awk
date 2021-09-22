@@ -8,7 +8,7 @@ cleanup() {
 }
 
 export FMAWK_PREVIEWER="fmawk-previewer"
-if [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ]; then
+if [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ] || ! command -v ueberzug; then
     fm.awk
 else
     export FIFO_UEBERZUG="$HOME/.cache/fmawk-ueberzug-$$"
