@@ -15,7 +15,7 @@ batorcat() {
     then
 		bat --color=always --style=plain --pager=never "$1"
 	else
-		cat "$file"
+		cat "$1"
 	fi
 }
 
