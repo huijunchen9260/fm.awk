@@ -11,8 +11,7 @@ prevRange=$6
 set -e
 
 batorcat() {
-	if command -v bat > /dev/null 2>&1
-    then
+	if command -v bat > /dev/null 2>&1; then
 		bat --color=always --style=plain --pager=never "$1"
 	else
 		cat "$1"
@@ -21,7 +20,7 @@ batorcat() {
 
 _preview_print () {
     b=$1; e=$2; top=$3; shift 3
-    awk -F"\n" -v b=$b -v e=$e -v top=$top '{i++; printf("\033[%s;%sH%s\n",top+i-1,b,$1); if (i >= e) exit }'
+    awk -F"\n" -v b="$b" -v e="$e" -v top="$top" '{i++; printf("\033[%s;%sH%s\n",top+i-1,b,$1); if (i >= e) exit }'
 }
 
 _fmawk_preview () {
@@ -96,7 +95,7 @@ _fmawk_preview () {
 			printf '{ "action":"add", "identifier":"PREVIEW", "x":"%s", "y":"%s", "width":"%s", "height":"%s", "scaler":"contain", "path":"%s" }\n' "$b" 1 "$prevRange" "$vRange" "$fmawk_dest" > "$FIFO_UEBERZUG"
 		else
 			if command -v chafa > /dev/null; then
-                chafa --size "$vRangex" "$fmawk_dest" 2>/dev/null | _preview_print "$b" "$vRange" "$top" "$@"
+				chafa --size "$vRange" "$fmawk_dest" 2>/dev/null | _preview_print "$b" "$vRange" "$top" "$@"
 			else
 				printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m" "Chafa not found. Unable to display."
 			fi
