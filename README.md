@@ -107,6 +107,13 @@ edit `fm.awk`, modify the first configuration section:
 - tab completion on command line mode based on command line history.
 - left / right arrow to move cursor; up / down arrow to access command line history.
 
+### `scripts`
+
+`scripts` stores the shell scripts that serve some purposes that I think is better to be done externally. They are
+
+- `decompressall`: go through all compression files in current directory and decompress all of them.
+- `renameall`: rename all files and directories in current directory. The list of all files/directories will open in default text editor using `xdg-open` files/directories will be renamed line by line.
+
 ## TODO
 
 - [x] Image preview (start using ueberzug)

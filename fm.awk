@@ -397,7 +397,7 @@ function search(list, delim, str, mode) {
     return slist
 }
 
-function key_collect(pagerind) {
+function key_collect(list, pagerind) {
     key = ""; rep = 0
     do {
 
@@ -430,7 +430,7 @@ function key_collect(pagerind) {
 function cmd_mode(list, answer) {
 
     cmd_trigger = answer;
-    while (key = key_collect(pagerind)) {
+    while (key = key_collect(list, pagerind)) {
         if (key == "\003" || key == "\033" || key == "\n") {
             if (key == "\003" || key == "\033") { reply = "\003"; }
             split("", comparr, ":")
@@ -580,13 +580,13 @@ function cmd_mode(list, answer) {
         CUP(dim[1], 1)
         if (cmd_trigger ~ /^[[:digit:]]$/) {
             status = sprintf("\033\1332KChoose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: %s%s", Narr, curpage, page, cmd_trigger, reply)
+            if (cmd_trigger reply ~ /^[[:digit:]]+[Gjk]$/) { split("", comparr, ":"); break; }
         }
         else {
             status = sprintf("\033\1332K%s%s", cmd_trigger, reply)
             showtext = substr(status, length(status) - dim[2] - 1 + cc, length(status) + cc)
 
         }
-        # printf(showtext) >> "/dev/stderr"
         printf(status) >> "/dev/stderr"
         if (cc < 0) { CUP(dim[1], length(status) + cc - 3) } # adjust cursor
     }
@@ -597,7 +597,7 @@ function yesno(command) {
     CUP(dim[1], 1)
     printf("\033\1332k%s %s? (y/n) ", "Really execute command", command) >> "/dev/stderr"
     printf "\033\133?25h" >> "/dev/stderr" # show cursor
-    key = key_collect(pagerind)
+    key = key_collect(list, pagerind)
     printf "\033\133?25l" >> "/dev/stderr" # hide cursor
     if (key ~ /[Yy]/) return 1
 }
@@ -631,7 +631,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
         while (1) {
 
-            answer = key_collect(pagerind)
+            answer = key_collect(list, pagerind)
 
             #######################################
             #  Key: entry choosing and searching  #
@@ -649,9 +649,11 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
                 cmd_mode(list, answer)
 
+
                 printf "\033\133?25l" >> "/dev/stderr" # hide cursor
                 if (reply == "\003") { answer = ""; key = ""; reply = ""; break; }
                 answer = cmd_trigger reply; reply = ""; split("", comparr, ":"); cc = 0; dd = 0;
+
 
                 ## cd
                 if (answer ~ /:cd .*/) {
@@ -736,15 +738,21 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                 }
 
                 ## go to page
-                if ( (answer ~ /[[:digit:]]+G/) ) {
+                if (answer ~ /[[:digit:]]+G$/) {
                     ans = answer; gsub(/G/, "", ans);
                     curpage = (+ans <= +page ? ans : page)
                     break
                 }
-                if (+answer > +Narr) answer = Narr
-                if (+answer < 1) answer = 1
-                cursor = answer - dispnum*(curpage-1); answer = ""
-                break
+
+
+                if (answer ~ /[[:digit:]]+$/) {
+                    if (+answer > +Narr) answer = Narr
+                    if (+answer < 1) answer = 1
+                    curpage = answer / dispnum
+                    curpage = sprintf("%.0f", (curpage == int(curpage)) ? curpage : int(curpage)+1)
+                    cursor = answer - dispnum*(curpage-1); answer = ""
+                    break
+                }
             }
 
             if (answer ~ /[?]/) { pager(help); break; }
@@ -814,8 +822,13 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
            if ( (answer == "j" || answer ~ /\[B/) && +cursor <= +dispnum ) { oldCursor = cursor; cursor++; }
            if ( (answer == "j" || answer ~ /\[B/) && +cursor > +dispnum  && page > 1 ) { cursor = 1; curpage++; break }
+           # if ( answer ~ /[[:digit:]]+j/ && +cursor <= +dispnum ) { oldCursor = cursor; cursor = cursor + substr(answer, 1, length(answer) - 1) ; }
+           # if ( answer ~ /[[:digit:]]+j/ && +cursor > +dispnum ) { cursor = cursor - dispnum ; curpage++; break }
            if ( (answer == "k" || answer ~ /\[A/) && +cursor == 1 && curpage > 1 && page > 1 ) { cursor = dispnum; curpage--; break }
            if ( (answer == "k" || answer ~ /\[A/) && +cursor > 1 ) { oldCursor = cursor; cursor--; }
+           # if ( answer ~ /[[:digit:]]+k/ && +cursor < 1 && curpage > 1 && page > 1 ) { cursor = dispnum - ( cursor - substr(answer, 1, length(answer) - 1) ); curpage--; break }
+           # if ( answer ~ /[[:digit:]]+k/ && +cursor > 1 ) { oldCursor = cursor; cursor = cursor - substr(answer, 1, length(answer) - 1); }
+
            if ( answer == "H" ) { oldCursor = cursor; cursor = 1; }
            if ( answer == "M" ) { oldCursor = cursor; cursor = ( +curpage == +page ? int((Narr - dispnum*(curpage-1))*0.5) : int(dispnum*0.5) ); }
            if ( answer == "L" ) { oldCursor = cursor; cursor = ( +curpage == +page ? Narr - dispnum*(curpage-1) : dispnum ); }
@@ -922,7 +935,7 @@ function pager(msg) { # pager to print out stuff and navigate
     }
 
     pagerind = 1
-    while (key = key_collect(pagerind)) {
+    while (key = key_collect(list, pagerind)) {
         if (key == "\003" || key == "\033" || key == "q" || key == "h") break
         if ((key == "j" || key ~ /\[B/) && i < Nmsgarr) { printf "\033\133%d;H\n", Npager >> "/dev/stderr"; printf msgarr[i++] >> "/dev/stderr" }
         if ((key == "k" || key ~ /\[A/) && i > dim[1] + 1) { printf "\033\133H\033\133L" >> "/dev/stderr"; i--; printf msgarr[i-dim[1]] >> "/dev/stderr" }

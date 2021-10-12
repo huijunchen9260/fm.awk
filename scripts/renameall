@@ -1,0 +1,35 @@
+#!/bin/sh
+
+## Line number of $TMP and original file must be the same
+## and the order of each file must be the same
+
+set -e
+
+set -- * .*
+
+TMP="/tmp/renametmp"
+
+[ -f "$TMP" ] && rm "$TMP"
+for f do
+    case "$f" in
+        '.'|'..') continue ;;
+    esac
+    j=$((j+1))
+    printf '%s\n' "$f" >> "$TMP"
+done
+
+xdg-open "$TMP"
+
+[ "$(grep -c '^' "$TMP")" -ne "$j" ] &&
+    printf '%s' "ERROR: Lines mismatch in rename file; do nothing." &&
+    exit
+
+for f do
+    case "$f" in
+        '.'|'..') continue ;;
+    esac
+    i=$((i+1))
+    mv "$f" "$(sed "${i}q;d" "$TMP")" || continue
+done
+
+rm "$TMP"

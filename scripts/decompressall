@@ -1,0 +1,40 @@
+#!/bin/sh
+
+set -e
+
+set -- *
+
+for f do
+    case "$f" in
+        *.tar.bz2|*.tar.xz|*.tbz2|*.tar.gz|*.tgz|*.lzma|*.bz2|*.rar|*.gz|*.tar|*.zip|*.Z|*.7z|*.xz|*.cab|*.zip) ;;
+        *) continue
+    esac
+    parent="$PWD"
+    DirName="${f%.*}"
+    DirName="${DirName%.tar}"
+    if [ ! -d "$DirName" ]; then
+        mkdir -p "$DirName"
+    else
+        echo "$DirName is there"
+        continue
+    fi
+    cd "$DirName"
+    case "$f" in
+        *.tar.bz2|*.tar.xz|*.tbz2) tar xvjf "$f" ;;
+        *.tar.gz|*.tgz) tar xvzf "$parent/$f" ;;
+        *.lzma) unlzma "$parent/$f" ;;
+        *.bz2) bunzip2 "$parent/$f" ;;
+        *.rar) unrar x -ad "$parent/$f" ;;
+        *.gz) gunzip "$parent/$f" ;;
+        *.tar) tar xvf "$parent/$f" ;;
+        *.zip) unzip "$parent/$f" ;;
+        *.Z) uncompress "$parent/$f" ;;
+        *.7z) 7z x "$parent/$f" ;;
+        *.xz) unxz "$parent/$f" ;;
+        *.cab) cabextract "$parent/$f" ;;
+        *.zip) unzip "$parent/$f" ;;
+    esac
+    cd "$parent"
+done
+
+

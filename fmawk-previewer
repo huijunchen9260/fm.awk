@@ -39,7 +39,7 @@ _fmawk_preview () {
             epub-thumbnailer "$path" "$cache" 1024
 			fmawk_dest="$cache.jpg"
 		;;
-		*.bmp|*.jpg|*.jpeg|*.png|*.webp|*.gif|*.xmp) #Image preview
+		*.bmp|*.jpg|*.jpeg|*.png|*.webp|*.gif|*.xmp|*.JPG) #Image preview
 			fmawk_dest="$path"
             ;;
         *.tgz|*.tar.gz)
