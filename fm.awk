@@ -6,7 +6,7 @@ BEGIN {
     #  Configuration  #
     ###################
 
-    OPENER = ( ENVIRON["OSTYPE"] ~ /darwin.*/ ? "open" : "xdg-open" )
+    OPENER = ( ENVIRON["FMAWK_OPENER"] == "" ? ( ENVIRON["OSTYPE"] ~ /darwin.*/ ? "open" : "xdg-open" ) : ENVIRON["FMAWK_OPENER"] )
     LASTPATH = ( ENVIRON["LASTPATH"] == "" ? ( ENVIRON["HOME"] "/.cache/lastpath" ) : ENVIRON["LASTPATH"] )
     HISTORY = ( ENVIRON["HISTORY"] == "" ? ( ENVIRON["HOME"] "/.cache/history" ) : ENVIRON["HISTORY"] )
     CMDHIST = ( ENVIRON["CMDHIST"] == "" ? ( ENVIRON["HOME"] "/.cache/cmdhist" ) : ENVIRON["CMDHIST"] )
@@ -386,7 +386,7 @@ function search(list, delim, str, mode) {
     # get rid of coloring to avoid find irrelevant item
     tmplist = list
     gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", tmplist)
-    Narr = split(list, sdisp, delim); split(tmplist, tmpsdisp, delim)
+    split(list, sdisp, delim); split(tmplist, tmpsdisp, delim)
 
     for (entry = 1; entry in tmpsdisp; entry++) {
         match(tolower(tmpsdisp[entry]), regex)

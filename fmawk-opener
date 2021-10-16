@@ -1,0 +1,55 @@
+#!/bin/sh
+
+# See README.md for more detail
+
+Extract () { # Usage: Extract [CMD] [FILE]
+    BaseName="${2##*/}"
+    DirName="${BaseName%%.*}"
+
+    command -v "${1%% *}" || exit 1
+    [ ! -d "$DirName" ] && mkdir -p "$DirName"
+    cd "$DirName" || return
+    $1 "$2" &&
+	echo ""$CHOICE" extracted to "$DirName"" ||
+	{
+	    cd .. && rm -rf "$DirName"
+	    echo "Extraction fail"
+	}
+}
+
+FileOpen() {
+    mimetype=$(file --mime-type -b "$1" 2>/dev/null)
+    case "$1" in
+        *.tar.bz2|*.tar.xz|*.tbz2) Extract "tar xvjf" "$1" ;;
+        *.tar.gz|*.tgz) Extract "tar xvzf" "$1" ;;
+        *.lzma) Extract "unlzma" "$1" ;;
+        *.bz2) Extract "bunzip2" "$1" ;;
+        *.rar) Extract "unrar x -ad" "$1" ;;
+        *.gz) Extract "gunzip" "$1" ;;
+        *.tar) Extract "tar xvf" "$1" ;;
+        *.zip) Extract "unzip" "$1" ;;
+        *.Z) Extract "uncompress" "$1" ;;
+        *.7z) Extract "7z x" "$1" ;;
+        *.xz) Extract "unxz" "$1" ;;
+        *.cab) Extract "cabextract" "$1" ;;
+        *.xopp) xournalpp "$1" ;;
+        *)
+            printf '%s' "$PWD" > "$FM_LASTPATH"
+            case "$mimetype" in
+                # Stolen from fff.
+                text/*|*x-empty*|*json*)
+                    case "$TERMINAL" in
+                        "") "${FM_OPENER:-${opener:-xdg-open}}" "$1" ;;
+                        *) [ -t 0 ] && "${EDITOR:-vi}" "$1" || $TERMINAL -e "${EDITOR:-vi}" "$1" ;;
+                    esac
+                    ;;
+                inode/symlink)
+                    path=$(readlink -f "$1")
+                    FileOpen "$path"
+                    ;;
+                *) xdg-open "$1" ;;
+            esac
+    esac
+}
+
+FileOpen "$1"
