@@ -34,7 +34,6 @@ FileOpen() {
         *.cab) Extract "cabextract" "$1" ;;
         *.xopp) xournalpp "$1" ;;
         *)
-            printf '%s' "$PWD" > "$FM_LASTPATH"
             case "$mimetype" in
                 # Stolen from fff.
                 text/*|*x-empty*|*json*)

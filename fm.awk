@@ -60,6 +60,7 @@ BEGIN {
        "NAVIGATION: \n" \
        "\tk/↑ - up                      j/↓ - down \n" \
        "\tl/→ - right                   h/← - left \n" \
+       "\tCtrl-f - Half Page Down       Ctrl-u - Half Page Up\n" \
        "\tn/PageDown - PageDown         p/PageUp - PageUp \n"  \
        "\tg/Home - first page           G/End - last page \n"  \
        "\tH - first entry               L - last entry \n"  \
@@ -101,6 +102,14 @@ END {
         printf("%s", dir) > LASTPATH; close(LASTPATH)
     }
 }
+
+# function trim_dir(dir) {
+#     Ndirarr = split(dir, dirarr, "/")
+#     for (i = 1; i <= Ndirarr - 2; i++) {
+#         trimdir = trimdir "/" substr(dirarr[i], 1, 1)
+#     }
+#     trimdir = trimdir "/" dirarr[Ndirarr-1] "/" dirarr[Ndirarr]
+# }
 
 function main() {
 
@@ -358,6 +367,7 @@ function menu_TUI_page(list, delim) {
     dim_setup()
     Narr = split(list, disp, delim)
     dispnum = (dispnum <= Narr ? dispnum : Narr)
+    move = int( ( dispnum <= Narr ? dispnum * 0.5 : Narr * 0.5 ) )
 
     # generate display content for each page (pagearr)
     for (entry = 1; entry in disp; entry++) {
@@ -603,7 +613,6 @@ function yesno(command) {
 }
 
 function redraw(tmsg, bmsg) {
-
     printf "\033\1332J\033\133H" >> "/dev/stderr" # clear screen and move cursor to 0, 0
     CUP(top, 1); print pagearr[curpage] >> "/dev/stderr"
     CUP(top + cursor*num - num, 1); printf "%s\033\1337m%s\033\133m", Ncursor ". ", disp[Ncursor] >> "/dev/stderr"
@@ -620,7 +629,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
     menu_TUI_page(list, delim)
     while (answer !~ /^[[:digit:]]+$|\.\.\//) {
 
-        oldCursor = 1;
+        # oldCursor = 1;
 
         ## calculate cursor and Ncursor
         cursor = ( cursor+dispnum*(curpage-1) > Narr ? Narr - dispnum*(curpage-1) : cursor )
@@ -821,13 +830,19 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
             #########################
 
            if ( (answer == "j" || answer ~ /\[B/) && +cursor <= +dispnum ) { oldCursor = cursor; cursor++; }
-           if ( (answer == "j" || answer ~ /\[B/) && +cursor > +dispnum  && page > 1 ) { cursor = 1; curpage++; break }
-           # if ( answer ~ /[[:digit:]]+j/ && +cursor <= +dispnum ) { oldCursor = cursor; cursor = cursor + substr(answer, 1, length(answer) - 1) ; }
-           # if ( answer ~ /[[:digit:]]+j/ && +cursor > +dispnum ) { cursor = cursor - dispnum ; curpage++; break }
-           if ( (answer == "k" || answer ~ /\[A/) && +cursor == 1 && curpage > 1 && page > 1 ) { cursor = dispnum; curpage--; break }
+           if ( (answer == "j" || answer ~ /\[B/) && +cursor > +dispnum && +curpage < +page && +page > 1 ) { cursor = 1; curpage++; break }
+           if ( (answer == "k" || answer ~ /\[A/) && +cursor == 1 && +curpage > 1 && +page > 1 ) { cursor = dispnum; curpage--; break }
            if ( (answer == "k" || answer ~ /\[A/) && +cursor > 1 ) { oldCursor = cursor; cursor--; }
-           # if ( answer ~ /[[:digit:]]+k/ && +cursor < 1 && curpage > 1 && page > 1 ) { cursor = dispnum - ( cursor - substr(answer, 1, length(answer) - 1) ); curpage--; break }
-           # if ( answer ~ /[[:digit:]]+k/ && +cursor > 1 ) { oldCursor = cursor; cursor = cursor - substr(answer, 1, length(answer) - 1); }
+
+           if ( (answer == "\006") && cursor <= +dispnum ) { oldCursor = cursor; cursor = cursor + move }
+           if ( (answer == "\006") && +cursor > +dispnum && +curpage < +page && +page > 1 ) { cursor = cursor - dispnum; curpage++; break }
+           if ( (answer == "\006") && +cursor > Narr - dispnum*(curpage-1) && +curpage == +page ) { cursor = ( +curpage == +page ? Narr - dispnum*(curpage-1) : dispnum ); break }
+           if ( (answer == "\006") && +cursor == Narr - dispnum*(curpage-1) && +curpage == +page ) continue
+
+           if ( (answer == "\025") && cursor >= 1 ) { oldCursor = cursor; cursor = cursor - move }
+           if ( (answer == "\025") && +cursor < 1 && +curpage > 1 ) { cursor = dispnum + cursor; curpage--; break }
+           if ( (answer == "\025") && +cursor < 1 && +curpage == 1 ) { cursor = 1; break }
+           if ( (answer == "\025") && +cursor == 1 && +curpage == 1 ) continue
 
            if ( answer == "H" ) { oldCursor = cursor; cursor = 1; }
            if ( answer == "M" ) { oldCursor = cursor; cursor = ( +curpage == +page ? int((Narr - dispnum*(curpage-1))*0.5) : int(dispnum*0.5) ); }
