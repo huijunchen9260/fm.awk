@@ -18,11 +18,11 @@ for f do
     printf '%s\n' "$f" >> "$TMP"
 done
 
-xdg-open "$TMP"
+${EDITOR:-xdg-open} "$TMP"
 
 [ "$(grep -c '^' "$TMP")" -ne "$j" ] &&
     printf '%s' "ERROR: Lines mismatch in rename file; do nothing." &&
-    exit
+    exit 1
 
 for f do
     case "$f" in

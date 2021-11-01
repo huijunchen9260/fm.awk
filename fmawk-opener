@@ -33,6 +33,7 @@ FileOpen() {
         *.xz) Extract "unxz" "$1" ;;
         *.cab) Extract "cabextract" "$1" ;;
         *.xopp) xournalpp "$1" ;;
+        *.xlsx|*.xls|*.docx|*.ods) libreoffice "$1" ;;
         *)
             case "$mimetype" in
                 # Stolen from fff.
