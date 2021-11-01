@@ -57,10 +57,7 @@ MISC:
 - [x] Directory / File preview
 - Actions:
     - History
-    - ~`mv`~
-    - ~`cp -R`~
-    - ~`ln -sf`~
-    - ~`rm -rf` && yes-no prompt~
+
 Try to use those file manipulation function with cmd mode
 
 ## Configuration
@@ -104,12 +101,15 @@ edit `fm.awk`, modify the first configuration section:
     - e.g., After selection, `:chmod +x` to give execution permission on selected entries.
 - `:cmd {} destination` to replace `{}` with each selected item and execute the whole command.
     - e.g., After selection, `:mv {} ~` will move selected item to `$HOME` directory.
-- ~`:cmd ><` and type tab will leads to Selection mode for directory. After choosing directory by choosing `./`, the `><` part in the command line will be replaced by the directory chosen.~
 - File manipulation is done by this process:
     - Select file/dir => go to destination by browsing => type `:cmd {} ./` to execute `cmd` on selected file to destination
-    - e.g. using `mv` by select files, go to destination and type `:mv {} ./`.
+    - e.g. select files, go to destination and type `:mv {} ./`.
 - `cmd` can be shell alias (`bash` and `zsh` confirmed. `fish` not sure).
 - tab completion on `:cd ` and search (`/`)
+- tab completion on path:
+    - press tab or shift-tab for path completion => press Enter to confirm current completion, and go the either of the following two path:
+        - => press tab / shift-tab for next-level path completion.
+        - => press Enter again to confirm current path and exit cmd mode.
 - tab completion on command line mode based on command line history.
 - left / right arrow to move cursor; up / down arrow to access command line history.
 
@@ -125,5 +125,6 @@ edit `fm.awk`, modify the first configuration section:
 - [x] Image preview (start using ueberzug)
 - [x] Make preview script be independent
 - [x] Able to redraw by `SIGWINCH`.
+- [x] Tab completion on path
 - [ ] Make cmd bottom line can be scrollable horizontally even when the string is over the dimension
 - [ ] Eliminate action menu by implementing all of those in cmd mode

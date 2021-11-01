@@ -407,29 +407,30 @@ function cmd_mode(list, answer) {
     cmd_trigger = answer;
     while (key = key_collect(list, pagerind)) {
         if (key == "\003" || key == "\033" || key == "\n") {
-            if (key == "\003" || key == "\033") { reply = "\003"; }
+            if (key == "\003" || key == "\033") { reply = "\003"; break } # cancelled
             split("", comparr, ":")
-            break;
+            # if Double enter as confirm current path and exit
+            if (key_last !~ /\t|\[Z/) break
         }
-        if (key == "\177") {
+        if (key == "\177") { # backspace
             reply = substr(reply, 1, length(reply) + cc - 1) substr(reply, length(reply) + cc + 1);
             split("", comparr, ":")
         }
-        else if (cmd_trigger reply ~ /:.* ></ && key ~ /\t|\[Z/) {
-            HIDDEN = 1
-            bmsg = "Selecting...";
-            while (1) {
-                list = gen_content(dir, HIDDEN); delim = "\f"; num = 1; tmsg = dir;
-                menu_TUI(list, delim, num, tmsg, bmsg)
-                gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", result[1])
-                if (result[1] == "../") { gsub(/[^\/]*\/?$/, "", dir); dir = ( dir == "" ? "/" : dir ); continue }
-                else if (result[1] == "./") { tmsg = dir; bmsg = "Browsing"; result[1] = dir; break; }
-                else if (result[1] ~ /.*\/$/) dir = dir result[1]
-                else break
-            }
-            reply = substr(reply, 1, length(reply) - 2) result[1]
-            HIDDEN = 0
-        }
+        # else if (cmd_trigger reply ~ /:.* ></ && key ~ /\t|\[Z/) {
+        #     HIDDEN = 1
+        #     bmsg = "Selecting...";
+        #     while (1) {
+        #         list = gen_content(dir, HIDDEN); delim = "\f"; num = 1; tmsg = dir;
+        #         menu_TUI(list, delim, num, tmsg, bmsg)
+        #         gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", result[1])
+        #         if (result[1] == "../") { gsub(/[^\/]*\/?$/, "", dir); dir = ( dir == "" ? "/" : dir ); continue }
+        #         else if (result[1] == "./") { tmsg = dir; bmsg = "Browsing"; result[1] = dir; break; }
+        #         else if (result[1] ~ /.*\/$/) dir = dir result[1]
+        #         else break
+        #     }
+        #     reply = substr(reply, 1, length(reply) - 2) result[1]
+        #     HIDDEN = 0
+        # }
         # path completion: $HOME
         else if (cmd_trigger reply ~ /:cd |:.* / && key == "~") { reply = reply ENVIRON["HOME"] "/" }
         # path completion
@@ -466,8 +467,15 @@ function cmd_mode(list, answer) {
                     compdir = tmpdir
                 }
                 else {
-                    gsub(/[^\/]*\/?$/, "", compdir);
-                    gsub(compdir, "", comp)
+                    # allow single Enter to confirm current reply
+                    # as completion dir (compdir)
+                    if (key_last ~ /~|\n/) {
+                        comp = ""
+                    }
+                    else {
+                        gsub(/[^\/]*\/?$/, "", compdir);
+                        gsub(compdir, "", comp)
+                    }
                 }
                 compdir = (compdir == "" ? dir : compdir);
                 tmplist = gen_content(compdir)
@@ -527,6 +535,10 @@ function cmd_mode(list, answer) {
             if (-cc < length(reply) && key ~ /\[D/) { cc-- }
             if (cc < 0 && key ~ /\[C/) { cc++ }
         }
+        # single Enter clear the completion array (comparr)
+        else if (key == "\n") {
+            split("", comparr, ":")
+        }
         # Reject other escape sequence
         else if (key ~ /\[.+/) {
             continue
@@ -537,7 +549,6 @@ function cmd_mode(list, answer) {
         }
 
         if (cmd_trigger == "/") {
-            # list = gen_content(dir, HIDDEN)
             slist = search(list, delim, reply, "")
             for (i = top; i <= end; i++) {
                 CUP(i, 1)
@@ -560,10 +571,10 @@ function cmd_mode(list, answer) {
         else {
             status = sprintf("\033\1332K%s%s", cmd_trigger, reply)
             showtext = substr(status, length(status) - dim[2] - 1 + cc, length(status) + cc)
-
         }
         printf(status) >> "/dev/stderr"
         if (cc < 0) { CUP(dim[1], length(status) + cc - 3) } # adjust cursor
+        key_last = key
     }
 
 }
