@@ -416,21 +416,6 @@ function cmd_mode(list, answer) {
             reply = substr(reply, 1, length(reply) + cc - 1) substr(reply, length(reply) + cc + 1);
             split("", comparr, ":")
         }
-        # else if (cmd_trigger reply ~ /:.* ></ && key ~ /\t|\[Z/) {
-        #     HIDDEN = 1
-        #     bmsg = "Selecting...";
-        #     while (1) {
-        #         list = gen_content(dir, HIDDEN); delim = "\f"; num = 1; tmsg = dir;
-        #         menu_TUI(list, delim, num, tmsg, bmsg)
-        #         gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", result[1])
-        #         if (result[1] == "../") { gsub(/[^\/]*\/?$/, "", dir); dir = ( dir == "" ? "/" : dir ); continue }
-        #         else if (result[1] == "./") { tmsg = dir; bmsg = "Browsing"; result[1] = dir; break; }
-        #         else if (result[1] ~ /.*\/$/) dir = dir result[1]
-        #         else break
-        #     }
-        #     reply = substr(reply, 1, length(reply) - 2) result[1]
-        #     HIDDEN = 0
-        # }
         # path completion: $HOME
         else if (cmd_trigger reply ~ /:cd |:.* / && key == "~") { reply = reply ENVIRON["HOME"] "/" }
         # path completion
@@ -490,13 +475,14 @@ function cmd_mode(list, answer) {
             }
             if (cmd_trigger reply ~ /:cd .*/) reply = "cd " compdir comparr[c]
             else reply = cmd_run compdir comparr[c]
+            CUP(dim[1] - 2, 1)
+            printf("\033\1332K\033\13338;5;15m\033\13348;5;9m%s\033\133m", "looping through completion")
         }
         # command completion
         else if (cmd_trigger == ":" && key ~ /\t|\[Z/) {
             if (isEmpty(comparr)) {
                 getline cmdhist < CMDHIST; close(CMDHIST);
                 comp = reply;
-                # gsub(/[\\^$()\[\]\{\}]/, "\\\\&", comp) # escape special char
                 complist = search(cmdhist, "\n", comp, "begin")
                 gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", complist)
                 Ncomp = split(complist, comparr, "\n")
@@ -507,6 +493,8 @@ function cmd_mode(list, answer) {
                 else c = (c == 1 ? Ncomp : c - 1)
             }
             reply = comparr[c]
+            CUP(dim[1] - 2, 1)
+            printf("\033\1332K\033\13338;5;15m\033\13348;5;9m%s\033\133m", "looping through completion")
         }
         else if (cmd_trigger == ":" && key ~ /\[A|\[B/) {
             getline cmdhist < CMDHIST; close(CMDHIST);
@@ -536,7 +524,9 @@ function cmd_mode(list, answer) {
             if (cc < 0 && key ~ /\[C/) { cc++ }
         }
         # single Enter clear the completion array (comparr)
-        else if (key == "\n") {
+        else if (key ~ /\n/) {
+            CUP(dim[1] - 2, 1)
+            printf("\033\1332K\033\13338;5;15m\033\13348;5;9m%s\033\133m", "confirm current completion")
             split("", comparr, ":")
         }
         # Reject other escape sequence
