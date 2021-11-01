@@ -28,9 +28,11 @@ install:	dependencies
 	@mkdir -p $(DESTDIR)$(PREFIX)/bin
 	@install fm.awk $(DESTDIR)$(PREFIX)/bin
 	@install fmawk $(DESTDIR)$(PREFIX)/bin
+	@install fmawk-opener $(DESTDIR)$(PREFIX)/bin
 	@install fmawk-previewer $(DESTDIR)$(PREFIX)/bin
 
 uninstall:
 	@rm -rf $(DESTDIR)$(PREFIX)/bin/fm.awk
 	@rm -rf $(DESTDIR)$(PREFIX)/bin/fmawk
+	@rm -rf $(DESTDIR)$(PREFIX)/bin/fmawk-opener
 	@rm -rf $(DESTDIR)$(PREFIX)/bin/fmawk-previewer
