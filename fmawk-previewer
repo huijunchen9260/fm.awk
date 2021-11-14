@@ -20,7 +20,7 @@ batorcat() {
 
 _preview_print () {
     b=$1; e=$2; top=$3; shift 3
-    awk -F"\n" -v b="$b" -v e="$e" -v top="$top" '{i++; printf("\033[%s;%sH%s\n",top+i-1,b,$1); if (i >= e) exit }'
+    awk -F"\n" -v b="$b" -v e="$e" -v top="$top" '{i++; gsub(/\000\r/, "", $1); printf("\033[%s;%sH%s\n",top+i-1,b,$1); if (i >= e) exit }'
 }
 
 _fmawk_preview () {

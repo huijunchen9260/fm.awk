@@ -405,10 +405,11 @@ function key_collect(list, pagerind) {
 function cmd_mode(list, answer) {
 
     cmd_trigger = answer;
+    # b1 = 1; b2 = dim[2] - 1;
     while (key = key_collect(list, pagerind)) {
         if (key == "\003" || key == "\033" || key == "\n") {
-            if (key == "\003" || key == "\033") { reply = "\003"; break } # cancelled
             split("", comparr, ":")
+            if (key == "\003" || key == "\033") { reply = "\003"; break } # cancelled
             # if Double enter as confirm current path and exit
             if (key_last !~ /\t|\[Z/) break
         }
@@ -476,7 +477,8 @@ function cmd_mode(list, answer) {
             if (cmd_trigger reply ~ /:cd .*/) reply = "cd " compdir comparr[c]
             else reply = cmd_run compdir comparr[c]
             CUP(dim[1] - 2, 1)
-            printf("\033\1332K\033\13338;5;15m\033\13348;5;9m%s\033\133m", "looping through completion")
+            # printf("\033\1332K\033\13338;5;15m\033\13348;5;9m%s\033\133m", "looping through completion")
+            printf("\033\1332K\033\1337m\033\13333m%s\033\133m", "looping through completion")
         }
         # command completion
         else if (cmd_trigger == ":" && key ~ /\t|\[Z/) {
@@ -494,7 +496,8 @@ function cmd_mode(list, answer) {
             }
             reply = comparr[c]
             CUP(dim[1] - 2, 1)
-            printf("\033\1332K\033\13338;5;15m\033\13348;5;9m%s\033\133m", "looping through completion")
+            printf("\033\1332K\033\1337m\033\13333m%s\033\133m", "looping through completion")
+            # printf("\033\1332K\033\13338;5;15m\033\13348;5;9m%s\033\133m", "looping through completion")
         }
         else if (cmd_trigger == ":" && key ~ /\[A|\[B/) {
             getline cmdhist < CMDHIST; close(CMDHIST);
@@ -526,7 +529,8 @@ function cmd_mode(list, answer) {
         # single Enter clear the completion array (comparr)
         else if (key ~ /\n/) {
             CUP(dim[1] - 2, 1)
-            printf("\033\1332K\033\13338;5;15m\033\13348;5;9m%s\033\133m", "confirm current completion")
+            printf("\033\1332K\033\1337m\033\13333m%s\033\133m", "confirm current completion")
+            # printf("\033\1332K\033\13338;5;15m\033\13348;5;9m%s\033\133m", "confirm current completion")
             split("", comparr, ":")
         }
         # Reject other escape sequence
@@ -696,7 +700,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                                 post = substr(post, 1, RSTART-1) selected[sel] substr(post, RSTART+RLENGTH)
                             }
                             if (post) {
-                                code = system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\" " post "\" 2>/dev/null")
+                                code = system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\" \\\"" post "\\\"\" 2>/dev/null")
                             }
                             else {
                                 code = system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\"\" 2>/dev/null")
@@ -836,7 +840,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                    selpage[dir,Ncursor] = curpage;
                    selnum[dir,Ncursor] = Ncursor;
                    selorder[++order] = dir SUBSEP Ncursor
-                   bmsg = disp[Ncursor] order " selected"
+                   bmsg = disp[Ncursor] " selected"
                }
                else {
                    for (idx in selorder) { if (selorder[idx] == dir SUBSEP Ncursor) { delete selorder[idx]; break } }
@@ -844,7 +848,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                    delete seldisp[dir,Ncursor];
                    delete selpage[dir,Ncursor];
                    delete selnum[dir,Ncursor];
-                   bmsg = disp[Ncursor] idx " cancelled"
+                   bmsg = disp[Ncursor] " cancelled"
                }
                if (+Narr == 1) { break }
                if (+cursor <= +dispnum || +cursor <= +Narr) { cursor++ }
@@ -862,6 +866,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                            seldisp[dir,entry] = TMP;
                            selpage[dir,entry] = ((+entry) % (+dispnum) == 1 ? ++selp : selp)
                            selnum[dir,entry] = entry;
+                           selorder[++order] = dir SUBSEP entry
                        }
                    }
                    bmsg = "All selected"
