@@ -41,6 +41,20 @@ BEGIN {
         cmdalias[key] = cmd
     }
 
+    # defind [a]ttributes, [b]ackground and [f]oreground
+    a_bold = "\033\1331m"
+    a_reverse = "\033\1337m"
+    a_clean = "\033\1332K"
+    a_reset = "\033\133m"
+    b_red = "\033\13341m"
+    f_red = "\033\13331m"
+    f_green = "\033\13332m"
+    f_yellow = "\033\13333m"
+    f_blue = "\033\13334m"
+    f_magenta = "\033\13335m"
+    f_cyan = "\033\13336m"
+    f_white = "\033\13337m"
+
     #############
     #  Actions  #
     #############
@@ -125,7 +139,7 @@ function main() {
         #  Matching: Browsing  #
         ########################
 
-        gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", response)
+        gsub(/\033\[[0-9][0-9]m|\033\[[0-9]m|\033\[m/, "", response)
 
         if (response == "../") {
             parent = ( dir == "/" ? "/" : dir )
@@ -205,26 +219,27 @@ function hist_clean() {
     }
 }
 
+
 function gen_content(dir, HIDDEN) {
 
     if (HIDDEN == 0) {
         cmd = "for f in \"" dir "\"*; do "\
-                  "test -L \"$f\" && test -f \"$f\" && symFileList=\"$symFileList$(printf '\f\033\1331;36m%s\033\133m' \"$f\")\" && continue; "\
-                  "test -L \"$f\" && test -d \"$f\" && symDirList=\"$symDirList$(printf '\f\033\1331;36m%s\033\133m' \"$f\"/)\" && continue; "\
-                  "test -x \"$f\" && test -f \"$f\" && execList=\"$execList$(printf '\f\033\1331;32m%s\033\133m' \"$f\")\" && continue; "\
+                  "test -L \"$f\" && test -f \"$f\" && symFileList=\"$symFileList$(printf '\f" a_bold f_cyan "%s" a_reset "' \"$f\")\" && continue; "\
+                  "test -L \"$f\" && test -d \"$f\" && symDirList=\"$symDirList$(printf '\f" a_bold f_cyan "%s" a_reset "' \"$f\"/)\" && continue; "\
+                  "test -x \"$f\" && test -f \"$f\" && execList=\"$execList$(printf '\f" a_bold f_green "%s" a_reset "' \"$f\")\" && continue; "\
                   "test -f \"$f\" && fileList=\"$fileList$(printf '\f%s' \"$f\")\" && continue; "\
-                  "test -d \"$f\" && dirList=\"$dirList$(printf '\f\033\1331;34m%s\033\133m' \"$f\"/)\" ; "\
+                  "test -d \"$f\" && dirList=\"$dirList$(printf '\f" a_bold f_blue "%s" a_reset "' \"$f\"/)\" ; "\
               "done; "\
               "printf '%s' \"$dirList\" \"$symDirList\" \"$fileList\" \"$execList\" \"$symFileList\""
 
     }
     else if (HIDDEN == 1) {
         cmd = "for f in \"" dir "\"* \"" dir "\".* ; do "\
-                  "test -L \"$f\" && test -f \"$f\" && symFileList=\"$symFileList$(printf '\f\033\1331;36m%s\033\133m' \"$f\")\" && continue; "\
-                  "test -L \"$f\" && test -d \"$f\" && symDirList=\"$symDirList$(printf '\f\033\1331;36m%s\033\133m' \"$f\"/)\" && continue; "\
-                  "test -x \"$f\" && test -f \"$f\" && execList=\"$execList$(printf '\f\033\1331;32m%s\033\133m' \"$f\")\" && continue; "\
+                  "test -L \"$f\" && test -f \"$f\" && symFileList=\"$symFileList$(printf '\f" a_bold f_cyan "%s" a_reset "' \"$f\")\" && continue; "\
+                  "test -L \"$f\" && test -d \"$f\" && symDirList=\"$symDirList$(printf '\f" a_bold f_cyan "%s" a_reset "' \"$f\"/)\" && continue; "\
+                  "test -x \"$f\" && test -f \"$f\" && execList=\"$execList$(printf '\f" a_bold f_green "%s" a_reset "' \"$f\")\" && continue; "\
                   "test -f \"$f\" && fileList=\"$fileList$(printf '\f%s' \"$f\")\" && continue; "\
-                  "test -d \"$f\" && dirList=\"$dirList$(printf '\f\033\1331;34m%s\033\133m' \"$f\"/)\" ; "\
+                  "test -d \"$f\" && dirList=\"$dirList$(printf '\f" a_bold f_blue "%s" a_reset "' \"$f\"/)\" ; "\
               "done; "\
               "printf '%s' \"$dirList\" \"$symDirList\" \"$fileList\" \"$execList\" \"$symFileList\""
     }
@@ -302,13 +317,13 @@ function draw_selected() {
             CUP(top + cursor*num - num + i, 1)
         }
         CUP(top + (selN-dispnum*(curpage-1))*num - num, 1)
-        gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", seldisp[sel])
+        gsub(/\033\[[0-9][0-9]m|\033\[[0-9]m|\033\[m/, "", seldisp[sel])
 
         if (cursor == selN-dispnum*(curpage-1)) {
-            printf "  \033\1337;31m%s%s\033\133m", selN ". ", seldisp[sel] >> "/dev/stderr"
+            printf "%s  %s%s%s%s%s", a_clean, a_reverse, f_red, selN ". ", seldisp[sel], a_reset >> "/dev/stderr"
         }
         else {
-            printf "  \033\1331;31m%s%s\033\133m", selN ". ", seldisp[sel] >> "/dev/stderr"
+            printf "%s  %s%s%s%s%s", a_clean, a_bold, f_red, selN ". ", seldisp[sel], a_reset >> "/dev/stderr"
         }
     }
 }
@@ -344,7 +359,9 @@ function menu_TUI_page(list, delim) {
         else {
             pagearr[page] = pagearr[page] "\n" entry ". " disp[entry]
         }
-        if (parent != "" && disp[entry] == sprintf("\033\1331;34m%s\033\133m", parent)) {
+        loc = disp[entry]
+        gsub(/\033\[[0-9][0-9]m|\033\[[0-9]m|\033\[m/, "", loc)
+        if (parent != "" && loc == parent) {
             cursor = entry - dispnum*(page - 1); curpage = page
         }
     }
@@ -359,7 +376,7 @@ function search(list, delim, str, mode) {
 
     # get rid of coloring to avoid find irrelevant item
     tmplist = list
-    gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", tmplist)
+    gsub(/\033\[[0-9][0-9]m|\033\[[0-9]m|\033\[m/, "", tmplist)
     split(list, sdisp, delim); split(tmplist, tmpsdisp, delim)
 
     for (entry = 1; entry in tmpsdisp; entry++) {
@@ -387,10 +404,22 @@ function key_collect(list, pagerind) {
         }
 
         gsub(/[\\^\[\]]/, "\\\\&", ans) # escape special char
-        if (ans ~ /.*WINCH/ && pagerind == 0) { # trap SIGWINCH
+        # if (ans ~ /.*WINCH/ && pagerind == 0) { # trap SIGWINCH
+        if (ans ~ /.*WINCH/) { # trap SIGWINCH
             cursor = 1; curpage = 1;
-            menu_TUI_page(list, delim)
-            redraw(tmsg, bmsg)
+            if (pagerind == 0) {
+                menu_TUI_page(list, delim)
+                redraw(tmsg, bmsg)
+            }
+            else if (pagerind == 1) {
+                printf "\033\1332J\033\133H" >> "/dev/stderr"
+                dim_setup()
+                Npager = (Nmsgarr >= dim[1] ? dim[1] : Nmsgarr)
+                for (i = 1; i <= Npager; i++) {
+                    CUP(i, 1)
+                    printf "%s", msgarr[i] >> "/dev/stderr"
+                }
+            }
             gsub(/WINCH/, "", ans);
         }
         if (ans ~ /\033/ && rep == 1) { ans = ""; continue; } # first char of escape seq
@@ -464,9 +493,9 @@ function cmd_mode(list, answer) {
                     }
                 }
                 compdir = (compdir == "" ? dir : compdir);
-                tmplist = gen_content(compdir)
+                tmplist = gen_content(compdir, 1)
                 complist = ( cmd_trigger reply ~ /:cd .*/ ? search(tmplist, delim, comp, "dir") : search(tmplist, delim, comp, "begin") )
-                gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", complist)
+                gsub(/\033\[[0-9][0-9]m|\033\[[0-9]m|\033\[m/, "", complist)
                 Ncomp = split(complist, comparr, delim)
                 c = ( key == "\t" ? 1 : Ncomp )
             }
@@ -478,7 +507,8 @@ function cmd_mode(list, answer) {
             else reply = cmd_run compdir comparr[c]
             CUP(dim[1] - 2, 1)
             # printf("\033\1332K\033\13338;5;15m\033\13348;5;9m%s\033\133m", "looping through completion")
-            printf("\033\1332K\033\1337m\033\13333m%s\033\133m", "looping through completion")
+            # printf("\033\1332K\033\1337;33m%s\033\133m", "looping through completion")
+            printf("%s%s%s%s%s", a_clean, a_reverse, f_yellow, "looping through completion", a_reset)
         }
         # command completion
         else if (cmd_trigger == ":" && key ~ /\t|\[Z/) {
@@ -486,7 +516,7 @@ function cmd_mode(list, answer) {
                 getline cmdhist < CMDHIST; close(CMDHIST);
                 comp = reply;
                 complist = search(cmdhist, "\n", comp, "begin")
-                gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", complist)
+                gsub(/\033\[[0-9][0-9]m|\033\[[0-9]m|\033\[m/, "", complist)
                 Ncomp = split(complist, comparr, "\n")
                 c = ( key == "\t" ? 1 : Ncomp )
             }
@@ -496,7 +526,8 @@ function cmd_mode(list, answer) {
             }
             reply = comparr[c]
             CUP(dim[1] - 2, 1)
-            printf("\033\1332K\033\1337m\033\13333m%s\033\133m", "looping through completion")
+            # printf("\033\1332K\033\1337;33m%s\033\133m", "looping through completion")
+            printf("%s%s%s%s%s", a_clean, a_reverse, f_yellow, "looping through completion", a_reset)
             # printf("\033\1332K\033\13338;5;15m\033\13348;5;9m%s\033\133m", "looping through completion")
         }
         else if (cmd_trigger == ":" && key ~ /\[A|\[B/) {
@@ -511,7 +542,7 @@ function cmd_mode(list, answer) {
             cc = 0; dd = 0;
             if (isEmpty(comparr)) {
                 comp = reply; complist = search(list, delim, comp, "begin")
-                gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", complist)
+                gsub(/\033\[[0-9][0-9]m|\033\[[0-9]m|\033\[m/, "", complist)
                 Ncomp = split(complist, comparr, delim)
                 c = ( key == "\t" ? 1 : Ncomp )
             }
@@ -529,7 +560,7 @@ function cmd_mode(list, answer) {
         # single Enter clear the completion array (comparr)
         else if (key ~ /\n/) {
             CUP(dim[1] - 2, 1)
-            printf("\033\1332K\033\1337m\033\13333m%s\033\133m", "confirm current completion")
+            printf("%s%s%s%s%s", a_clean, a_reverse, f_yellow, "confirm current completion", a_reset)
             # printf("\033\1332K\033\13338;5;15m\033\13348;5;9m%s\033\133m", "confirm current completion")
             split("", comparr, ":")
         }
@@ -559,11 +590,11 @@ function cmd_mode(list, answer) {
         }
         CUP(dim[1], 1)
         if (cmd_trigger ~ /^[[:digit:]]$/) {
-            status = sprintf("\033\1332KChoose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: %s%s", Narr, curpage, page, cmd_trigger, reply)
+            status = sprintf("%sChoose [%s1-%d%s], current page num is %s%d%s, total page num is %s%d%s: %s%s", a_clean, a_bold, Narr, a_reset, a_bold, curpage, a_reset, a_bold, page, a_reset, cmd_trigger, reply)
             if (cmd_trigger reply ~ /^[[:digit:]]+[Gjk]$/) { split("", comparr, ":"); break; }
         }
         else {
-            status = sprintf("\033\1332K%s%s", cmd_trigger, reply)
+            status = sprintf("%s%s%s", a_clean, cmd_trigger, reply)
             showtext = substr(status, length(status) - dim[2] - 1 + cc, length(status) + cc)
         }
         printf(status) >> "/dev/stderr"
@@ -575,7 +606,7 @@ function cmd_mode(list, answer) {
 
 function yesno(command) {
     CUP(dim[1], 1)
-    printf("\033\1332k%s %s? (y/n) ", "Really execute command", command) >> "/dev/stderr"
+    printf("%s%s %s? (y/n) ", a_clean, "Really execute command", command) >> "/dev/stderr"
     printf "\033\133?25h" >> "/dev/stderr" # show cursor
     key = key_collect(list, pagerind)
     printf "\033\133?25l" >> "/dev/stderr" # hide cursor
@@ -585,11 +616,12 @@ function yesno(command) {
 function redraw(tmsg, bmsg) {
     printf "\033\1332J\033\133H" >> "/dev/stderr" # clear screen and move cursor to 0, 0
     CUP(top, 1); print pagearr[curpage] >> "/dev/stderr"
-    CUP(top + cursor*num - num, 1); printf "%s\033\1337m%s\033\133m", Ncursor ". ", disp[Ncursor] >> "/dev/stderr"
+    CUP(top + cursor*num - num, 1); printf "%s%s%s%s", Ncursor ". ", a_reverse, disp[Ncursor], a_reset >> "/dev/stderr"
     CUP(top - 2, 1); print tmsg >> "/dev/stderr"
     CUP(dim[1] - 2, 1); print bmsg >> "/dev/stderr"
     CUP(dim[1], 1)
-    printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: ", Narr, curpage, page >> "/dev/stderr"
+    # printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: ", Narr, curpage, page >> "/dev/stderr"
+    printf "%sChoose [%s1-%d%s], current page num is %s%d%s, total page num is %s%d%s: ", a_clean, a_bold, Narr, a_reset, a_bold, curpage, a_reset, a_bold, page, a_reset >> "/dev/stderr"
     if (bmsg !~ /Action.*|Selecting\.\.\./ && ! isEmpty(selected)) draw_selected()
     if (bmsg !~ /Action.*|Selecting\.\.\./ && PREVIEW == 1) draw_preview(disp[Ncursor])
 }
@@ -619,10 +651,12 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
             if ( answer ~ /^[[:digit:]]$/ || answer == "/" || answer == ":" ) {
                 CUP(dim[1], 1)
                 if (answer ~ /^[[:digit:]]$/) {
-                    printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: %s", Narr, curpage, page, answer >> "/dev/stderr"
+                    # printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: %s", Narr, curpage, page, answer >> "/dev/stderr"
+
+                    printf "%sChoose [%s1-%d%s], current page num is %s%d%s, total page num is %s%d%s: %s", a_clean, a_bold, Narr, a_reset, a_bold, curpage, a_reset, a_bold, page, a_reset, answer >> "/dev/stderr"
                 }
                 else {
-                    printf "\033\1332K%s", answer >> "/dev/stderr" # clear line
+                    printf "%s%s", a_clean, answer >> "/dev/stderr" # clear line
                 }
                 printf "\033\133?25h" >> "/dev/stderr" # show cursor
 
@@ -652,7 +686,8 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                     tmplist = gen_content(dir, HIDDEN)
                     if (tmplist == "empty") {
                         dir = old_dir
-                        bmsg = sprintf("\033\13338;5;15m\033\13348;5;9m%s\033\133m", "Error: Path Not Exist")
+                        # bmsg = sprintf("\033\13338;5;15m\033\13348;5;9m%s\033\133m", "Error: Path Not Exist")
+                        bmsg = sprintf("%s%s%s%s", b_red, f_white, "Error: Path Not Exist", a_reset)
                     }
                     else {
                         list = tmplist
@@ -834,7 +869,8 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
            if ( answer == " " ) {
                if (selected[dir,Ncursor] == "") {
-                   TMP = disp[Ncursor]; gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", TMP)
+                   TMP = disp[Ncursor];
+                   gsub(/\033\[[0-9][0-9]m|\033\[[0-9]m|\033\[m/, "", TMP)
                    selected[dir,Ncursor] = dir TMP;
                    seldisp[dir,Ncursor] = TMP;
                    selpage[dir,Ncursor] = curpage;
@@ -860,7 +896,8 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                if (isEmpty(selected)) {
                    selp = 0
                    for (entry = 1; entry in disp; entry++) {
-                       TMP = disp[entry]; gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", TMP)
+                       TMP = disp[entry];
+                       gsub(/\033\[[0-9][0-9]m|\033\[[0-9]m|\033\[m/, "", TMP)
                        if (TMP != "./" && TMP != "../") {
                            selected[dir,entry] = dir TMP;
                            seldisp[dir,entry] = TMP;
@@ -899,12 +936,12 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
             if (Ncursor < 1) { Ncursor = 1; cursor = 1; continue }
 
             CUP(dim[1] - 2, 1); # bmsg
-            printf "\033\1332K" >> "/dev/stderr" # clear line
+            printf a_clean >> "/dev/stderr" # clear line
             print bmsg >> "/dev/stderr"
 
             CUP(top + oldCursor*num - num, 1); # old entry
             for (i = 1; i <= num; i++) {
-                printf "\033\1332K" >> "/dev/stderr" # clear line
+                printf a_clean >> "/dev/stderr" # clear line
                 CUP(top + oldCursor*num - num + i, 1)
             }
             CUP(top + oldCursor*num - num, 1);
@@ -912,11 +949,11 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
             CUP(top + cursor*num - num, 1); # new entry
             for (i = 1; i <= num; i++) {
-            printf "\033\1332K" >> "/dev/stderr" # clear line
+            printf a_clean >> "/dev/stderr" # clear line
             CUP(top + cursor*num - num + i, 1)
             }
             CUP(top + cursor*num - num, 1);
-            printf "%s\033\1337m%s\033\133m", Ncursor ". ", disp[Ncursor] >> "/dev/stderr"
+            printf "%s%s%s%s", Ncursor ". ", a_reverse, disp[Ncursor], a_reset >> "/dev/stderr"
 
             if (bmsg !~ /Action.*|Selecting\.\.\./ && ! isEmpty(selected)) draw_selected()
             if (bmsg !~ /Action.*|Selecting\.\.\./ && PREVIEW == 1) draw_preview(disp[Ncursor])
@@ -958,7 +995,7 @@ function draw_preview(item) {
     # clear RHS of screen based on border
     clean_preview()
 
-    gsub(/\033\[[0-9];[0-9][0-9]m|\033\[m/, "", item)
+    gsub(/\033\[[0-9][0-9]m|\033\[[0-9]m|\033\[m/, "", item)
     path = dir item
     if (path ~ /.*\/$/) { # dir
         content = gen_content(path)
@@ -980,7 +1017,8 @@ function draw_preview(item) {
                     CUP(top + i - 1, border + 1)
                     code = gsub(/\000/, "", prev[i])
                     if (code > 0) {
-                        printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "binary" >> "/dev/stderr"
+                        # printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "binary" >> "/dev/stderr"
+                        printf "%s%s%s%s", a_reverse, f_white, "binary", a_reset >> "/dev/stderr"
                         break
                     }
                     print prev[i] >> "/dev/stderr"
