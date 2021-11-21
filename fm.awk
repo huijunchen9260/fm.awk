@@ -434,7 +434,8 @@ function key_collect(list, pagerind) {
 function cmd_mode(list, answer) {
 
     cmd_trigger = answer;
-    # b1 = 1; b2 = dim[2] - 1;
+    cc = 0; dd = 0;
+    b1 = 1; b2 = dim[2]; bb = b2 - b1 - 1; curloc = 0;
     while (key = key_collect(list, pagerind)) {
         if (key == "\003" || key == "\033" || key == "\n") {
             split("", comparr, ":")
@@ -444,6 +445,8 @@ function cmd_mode(list, answer) {
         }
         if (key == "\177") { # backspace
             reply = substr(reply, 1, length(reply) + cc - 1) substr(reply, length(reply) + cc + 1);
+            if (length(reply) + cc < b1 && b1 > 1) { b1 = b1 - 1; b2 = b1 + bb; }
+            else if (curloc > 1) { curloc--; }
             split("", comparr, ":")
         }
         # path completion: $HOME
@@ -494,9 +497,19 @@ function cmd_mode(list, answer) {
                 }
                 compdir = (compdir == "" ? dir : compdir);
                 tmplist = gen_content(compdir, 1)
-                complist = ( cmd_trigger reply ~ /:cd .*/ ? search(tmplist, delim, comp, "dir") : search(tmplist, delim, comp, "begin") )
+                complist = ( cmd_trigger reply ~ /:cd .*/ ?
+                             search(tmplist, delim, comp, "dir") :
+                             search(tmplist, delim, comp, "begin") )
                 gsub(/\033\[[0-9][0-9]m|\033\[[0-9]m|\033\[m/, "", complist)
                 Ncomp = split(complist, comparr, delim)
+
+                ## save space for completion
+                space = length(comparr[1])
+                for (item in comparr) {
+                    space = ( space < length(comparr[item]) ? length(comparr[item]) : space )
+                }
+                if (length(compdir) + space > b2) { b2 = b2 + space; b1 = b2 - bb; }
+
                 c = ( key == "\t" ? 1 : Ncomp )
             }
             else {
@@ -506,8 +519,6 @@ function cmd_mode(list, answer) {
             if (cmd_trigger reply ~ /:cd .*/) reply = "cd " compdir comparr[c]
             else reply = cmd_run compdir comparr[c]
             CUP(dim[1] - 2, 1)
-            # printf("\033\1332K\033\13338;5;15m\033\13348;5;9m%s\033\133m", "looping through completion")
-            # printf("\033\1332K\033\1337;33m%s\033\133m", "looping through completion")
             printf("%s%s%s%s%s", a_clean, a_reverse, f_yellow, "looping through completion", a_reset)
         }
         # command completion
@@ -526,9 +537,7 @@ function cmd_mode(list, answer) {
             }
             reply = comparr[c]
             CUP(dim[1] - 2, 1)
-            # printf("\033\1332K\033\1337;33m%s\033\133m", "looping through completion")
             printf("%s%s%s%s%s", a_clean, a_reverse, f_yellow, "looping through completion", a_reset)
-            # printf("\033\1332K\033\13338;5;15m\033\13348;5;9m%s\033\133m", "looping through completion")
         }
         else if (cmd_trigger == ":" && key ~ /\[A|\[B/) {
             getline cmdhist < CMDHIST; close(CMDHIST);
@@ -552,16 +561,25 @@ function cmd_mode(list, answer) {
             }
             reply = comparr[c]
         }
-        # Left / Right arrow
-        else if (key ~ /\[D|\[C/) {
-            if (-cc < length(reply) && key ~ /\[D/) { cc-- }
-            if (cc < 0 && key ~ /\[C/) { cc++ }
+
+        else if (key ~ /\[C/) { # Right arrow
+            if (cc < 0) {
+                cc++
+                if (length(reply) + cc > b2 && b2 < length(reply)) { b2 = b2 + 1; b1 = b2 - bb; }
+                else if (curloc < bb) { curloc++; }
+            }
+        }
+        else if (key ~ /\[D/) { # Left arrow
+            if (-cc < length(reply)) {
+                cc--
+                if (length(reply) + cc < b1 && b1 > 1) { b1 = b1 - 1; b2 = b1 + bb; }
+                else if (curloc > 1) { curloc--; }
+            }
         }
         # single Enter clear the completion array (comparr)
         else if (key ~ /\n/) {
             CUP(dim[1] - 2, 1)
             printf("%s%s%s%s%s", a_clean, a_reverse, f_yellow, "confirm current completion", a_reset)
-            # printf("\033\1332K\033\13338;5;15m\033\13348;5;9m%s\033\133m", "confirm current completion")
             split("", comparr, ":")
         }
         # Reject other escape sequence
@@ -570,6 +588,8 @@ function cmd_mode(list, answer) {
         }
         else {
             reply = substr(reply, 1, length(reply) + cc) key substr(reply, length(reply) + cc + 1);
+            if (length(reply) + cc > b2) { b2 = b2 + 1; b1 = b2 - bb }
+            else if (curloc < bb) { curloc++; }
             split("", comparr, ":")
         }
 
@@ -588,17 +608,20 @@ function cmd_mode(list, answer) {
                 }
             }
         }
-        CUP(dim[1], 1)
         if (cmd_trigger ~ /^[[:digit:]]$/) {
             status = sprintf("%sChoose [%s1-%d%s], current page num is %s%d%s, total page num is %s%d%s: %s%s", a_clean, a_bold, Narr, a_reset, a_bold, curpage, a_reset, a_bold, page, a_reset, cmd_trigger, reply)
             if (cmd_trigger reply ~ /^[[:digit:]]+[Gjk]$/) { split("", comparr, ":"); break; }
         }
         else {
-            status = sprintf("%s%s%s", a_clean, cmd_trigger, reply)
-            showtext = substr(status, length(status) - dim[2] - 1 + cc, length(status) + cc)
+            # status = sprintf("%s%s%s", a_clean, cmd_trigger, reply)
+            status = sprintf("%s%s%s", a_clean, cmd_trigger, substr(reply, b1, bb))
         }
+        CUP(dim[1], 1)
+        # printf(status) >> "/dev/stderr"
+        # if (cc < 0) { CUP(dim[1], length(status) + cc - 3) } # adjust cursor
+        # printf(status ", " b1 ", " b2 ", "  curloc ", " cc ", " length(reply) ", " space) >> "/dev/stderr"
         printf(status) >> "/dev/stderr"
-        if (cc < 0) { CUP(dim[1], length(status) + cc - 3) } # adjust cursor
+        if (cc < 0) { CUP(dim[1], curloc + 2) } # adjust cursor
         key_last = key
     }
 
