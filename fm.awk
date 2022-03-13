@@ -373,6 +373,7 @@ function search(list, delim, str, mode) {
     if (mode == "dir") { regex = "^" str ".*/" }
     else if (mode == "begin") {regex = "^" str ".*"}
     else { regex = ".*" str ".*" }
+    gsub(/[(){}\[\]]/, "\\\\&", regex) # escape special char
 
     # get rid of coloring to avoid find irrelevant item
     tmplist = list
@@ -433,8 +434,16 @@ function key_collect(list, pagerind) {
 
 function cmd_mode(list, answer) {
 
+    ### comment for scrollable cmd mode:
+    # |------------b1--------------------b2-------------length(reply)
+    # b1 to b2 is the show-able region in the whole reply.
+    # b1 and b2 update according to keyboard inputs.
+    # keyboard inputs:
+    #   - Left arrow, right arrow, tab completion
+
     cmd_trigger = answer;
     cc = 0; dd = 0;
+    # b1 = 1; b2 = dim[2] - 50; bb = b2 - b1 - 1; curloc = 0;
     b1 = 1; b2 = dim[2]; bb = b2 - b1 - 1; curloc = 0;
     while (key = key_collect(list, pagerind)) {
         if (key == "\003" || key == "\033" || key == "\n") {
@@ -580,6 +589,7 @@ function cmd_mode(list, answer) {
         else if (key ~ /\n/) {
             CUP(dim[1] - 2, 1)
             printf("%s%s%s%s%s", a_clean, a_reverse, f_yellow, "confirm current completion", a_reset)
+            curloc = ( length(reply) > bb ? bb : length(reply) )
             split("", comparr, ":")
         }
         # Reject other escape sequence
@@ -746,7 +756,8 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                     gsub(/["]/, "\\\\&", command) # escape special char
                     finale()
                     if (isEmpty(selected)) {
-                        code = system("cd \"" dir "\" && eval \"" command "\" 2>/dev/null")
+                        # code = system("cd \"" dir "\" && eval \"" command "\" 2>/dev/null")
+                        code = system("cd \"" dir "\" && eval \"" command "\"")
                     }
                     else {
                         idx = maxidx(selorder)
@@ -758,10 +769,12 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                                 post = substr(post, 1, RSTART-1) selected[sel] substr(post, RSTART+RLENGTH)
                             }
                             if (post) {
-                                code = system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\" \\\"" post "\\\"\" 2>/dev/null")
+                                # code = system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\" \\\"" post "\\\"\" 2>/dev/null")
+                                code = system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\" \\\"" post "\\\"\"")
                             }
                             else {
-                                code = system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\"\" 2>/dev/null")
+                                # code = system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\"\" 2>/dev/null")
+                                code = system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\"\"")
                             }
                         }
                         empty_selected()
