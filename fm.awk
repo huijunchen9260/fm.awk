@@ -464,23 +464,25 @@ function key_collect(list, pagerind) {
         if (key ~ /[^\x00-\x7f]/) { break } # print non-ascii char
         if (key ~ /^\\\[5$|^\\\[6$$/) { ans = ""; continue; } # PageUp / PageDown
     } while (ans !~ /[\x00-\x5a]|[\x5f-\x7f]/)
-    # } while (ans !~ /[\006\025\033\003\177[:space:][:alnum:]><\}\{.~\/:!?*+-]|"|[|_$()]/)
     return key
 }
 
 function cmd_mode(list, answer) {
 
-    ### comment for scrollable cmd mode:
-    # |------------b1--------------------b2-------------length(reply)
-    # b1 to b2 is the show-able region in the whole reply.
-    # b1 and b2 update according to keyboard inputs.
-    # keyboard inputs:
-    #   - Left arrow, right arrow, tab completion
+    # --------------------------------------------------------------- #
+    # comment for scrollable cmd mode:                                #
+    # |------------b1--------------------b2-------------length(reply) #
+    # b1 to b2 is the show-able region in the whole reply.            #
+    # b1 and b2 update according to keyboard inputs.                  #
+    # keyboard inputs:                                                #
+    #   - Left arrow, right arrow, tab completion                     #
+    # --------------------------------------------------------------- #
+
+    # curloc: cursor location, default at 1 because of cmd_trigger
 
     cmd_trigger = answer;
-    cc = 0; dd = 0;
-    # b1 = 1; b2 = dim[2] - 50; bb = b2 - b1 - 1; curloc = 0;
-    b1 = 1; b2 = dim[2]; bb = b2 - b1 - 1; curloc = 0;
+    cc = 0; dd = 0; loopind = 0;
+    b1 = 1; b2 = dim[2]; bb = b2 - b1 - 1; curloc = 1;
     while (key = key_collect(list, pagerind)) {
         if (key == "\003" || key == "\033" || key == "\n") {
             split("", comparr, ":")
@@ -565,6 +567,7 @@ function cmd_mode(list, answer) {
             else reply = cmd_run compdir comparr[c]
             CUP(dim[1] - 2, 1)
             printf("%s%s%s%s%s", a_clean, a_reverse, f_yellow, "looping through completion", a_reset)
+            loopind = 1
         }
         # command completion
         else if (cmd_trigger == ":" && key ~ /\t|\[Z/) {
@@ -582,7 +585,8 @@ function cmd_mode(list, answer) {
             }
             reply = comparr[c]
             CUP(dim[1] - 2, 1)
-            printf("%s%s%s%s%s", a_clean, a_reverse, f_yellow, "looping through completion", a_reset)
+            printf("%s%s%s%s%s", a_clean, a_reverse, f_yellow, "looping through completion; press enter to confirm", a_reset)
+            loopind = 1
         }
         else if (cmd_trigger == ":" && key ~ /\[A|\[B/) {
             getline cmdhist < CMDHIST; close(CMDHIST);
@@ -601,20 +605,23 @@ function cmd_mode(list, answer) {
                 c = ( key == "\t" ? 1 : Ncomp )
             }
             else {
-                if (key == "\t") c = (c == Ncomp ? 1 : c + 1)
+                if (key == "\t") { c = (c == Ncomp ? 1 : c + 1) }
                 else c = (c == 1 ? Ncomp : c - 1)
             }
             reply = comparr[c]
+            CUP(dim[1] - 2, 1)
+            printf("%s%s%s%s%s", a_clean, a_reverse, f_yellow, "looping through completion; press enter to confirm", a_reset)
+            loopind = 1
         }
 
-        else if (key ~ /\[C/) { # Right arrow
+        else if (key ~ /\[C/ && loopind == 0) { # Right arrow
             if (cc < 0) {
                 cc++
                 if (length(reply) + cc > b2 && b2 < length(reply)) { b2 = b2 + 1; b1 = b2 - bb; }
                 else if (curloc < bb) { curloc++; }
             }
         }
-        else if (key ~ /\[D/) { # Left arrow
+        else if (key ~ /\[D/ && loopind == 0) { # Left arrow
             if (-cc < length(reply)) {
                 cc--
                 if (length(reply) + cc < b1 && b1 > 1) { b1 = b1 - 1; b2 = b1 + bb; }
@@ -625,8 +632,9 @@ function cmd_mode(list, answer) {
         else if (key ~ /\n/) {
             CUP(dim[1] - 2, 1)
             printf("%s%s%s%s%s", a_clean, a_reverse, f_yellow, "confirm current completion", a_reset)
-            curloc = ( length(reply) > bb ? bb : length(reply) )
+            curloc = ( length(reply) + 1 > bb ? bb : length(reply) + 1 )
             split("", comparr, ":")
+            loopind = 0
         }
         # Reject other escape sequence
         else if (key ~ /\[.+/) {
@@ -659,15 +667,13 @@ function cmd_mode(list, answer) {
             if (cmd_trigger reply ~ /^[[:digit:]]+[Gjk]$/) { split("", comparr, ":"); break; }
         }
         else {
-            # status = sprintf("%s%s%s", a_clean, cmd_trigger, reply)
             status = sprintf("%s%s%s", a_clean, cmd_trigger, substr(reply, b1, bb))
         }
+        CUP(top - 1, 1)
+        printf(cc "   " curloc) >> "/dev/stderr"
         CUP(dim[1], 1)
-        # printf(status) >> "/dev/stderr"
-        # if (cc < 0) { CUP(dim[1], length(status) + cc - 3) } # adjust cursor
-        # printf(status ", " b1 ", " b2 ", "  curloc ", " cc ", " length(reply) ", " space) >> "/dev/stderr"
         printf(status) >> "/dev/stderr"
-        if (cc < 0) { CUP(dim[1], curloc + 2) } # adjust cursor
+        if (cc < 0) { CUP(dim[1], curloc + 1) } # adjust cursor
         key_last = key
     }
 
