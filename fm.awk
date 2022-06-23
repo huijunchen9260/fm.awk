@@ -617,15 +617,29 @@ function cmd_mode(list, answer) {
         else if (key ~ /\[C/ && loopind == 0) { # Right arrow
             if (cc < 0) {
                 cc++
+                if (loopind == 1) {
+                    curloc = ( length(reply) + 1 > bb ? bb : length(reply) + 1 )
+                }
                 if (length(reply) + cc > b2 && b2 < length(reply)) { b2 = b2 + 1; b1 = b2 - bb; }
                 else if (curloc < bb) { curloc++; }
+                CUP(dim[1] - 2, 1)
+                printf("%s%s%s%s%s", a_clean, a_reverse, f_yellow, "confirm current completion", a_reset)
+                split("", comparr, ":")
+                loopind = 0
             }
         }
-        else if (key ~ /\[D/ && loopind == 0) { # Left arrow
+        else if (key ~ /\[D/) { # Left arrow
             if (-cc < length(reply)) {
                 cc--
+                if (loopind == 1) {
+                    curloc = ( length(reply) + 1 > bb ? bb : length(reply) + 1 )
+                }
                 if (length(reply) + cc < b1 && b1 > 1) { b1 = b1 - 1; b2 = b1 + bb; }
                 else if (curloc > 1) { curloc--; }
+                CUP(dim[1] - 2, 1)
+                printf("%s%s%s%s%s", a_clean, a_reverse, f_yellow, "confirm current completion", a_reset)
+                split("", comparr, ":")
+                loopind = 0
             }
         }
         # single Enter clear the completion array (comparr)
