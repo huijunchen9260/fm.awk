@@ -30,6 +30,22 @@ BEGIN {
     dir = ( ENVIRON["PWD"] == "/" ? "/" : ENVIRON["PWD"] "/" )
     cursor = 1; curpage = 1;
 
+    # get current keyboard setting
+    cmd = "xset q"
+    cmd | getline xsetkey
+    close(cmd)
+    split(xsetkey, keyset, " ")
+    for (idx in keyset){
+        if (keyset[idx-3] " " keyset[idx-2] " " keyset[idx-1] == "auto repeat delay:"){
+            # auto repeat delay in milliseconds; change to seconds
+            delaysec = keyset[idx]/1000
+        }
+        if (keyset[idx-2] " " keyset[idx-1] == "repeat rate:"){
+            # repeat rate in rep per seconds; change to seconds per rep
+            repsec = 1/keyset[idx]
+        }
+    }
+
     # load alias
     cmd = "${SHELL:=/bin/sh} -c \". ~/.${SHELL##*/}rc && alias\""
     cmd | getline alias
@@ -122,7 +138,26 @@ function main() {
     do {
 
         list = ( sind == 1 && openind == 1 ? slist : gen_content(dir, HIDDEN) )
-        delim = "\f"; num = 1; tmsg = dir; bmsg = ( bmsg == "" ? "Browsing" : bmsg );
+        delim = "\f"; num = 1; bmsg = ( bmsg == "" ? "Browsing" : bmsg );
+        dim_setup()
+
+        # adjust top msg if it is too long
+        if (length(dir) <= dim[2]){
+            tmsg = dir
+        }
+        else {
+            tmsg = dir
+            Ntmsg = split(tmsg, tmsgarr, "/")
+            tmsg = ""
+            for (idx = 2; idx in tmsgarr; idx++) {
+                if (idx < Ntmsg - 2) {
+                    tmsg = tmsg "/" substr(tmsgarr[idx], 1, 1)
+                }
+                else {
+                    tmsg = tmsg "/" tmsgarr[idx]
+                }
+            }
+        }
         menu_TUI(list, delim, num, tmsg, bmsg)
         response = result[1]
         bmsg = result[2]
@@ -390,16 +425,17 @@ function search(list, delim, str, mode) {
 }
 
 function key_collect(list, pagerind) {
-    key = ""; rep = 0
+    key = ""; rep = 0;
     do {
 
         cmd = "trap 'printf WINCH' WINCH; dd ibs=1 count=1 2>/dev/null"
         cmd | getline ans;
         close(cmd)
 
+
         if (++rep == 1) {
             srand(); time = srand()
-            if (time - old_time == 0) { sec++ }
+            if (time - old_time == 0) { sec = sec + repsec }
             else { sec = 0 }
             old_time = time
         }
@@ -769,11 +805,9 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                                 post = substr(post, 1, RSTART-1) selected[sel] substr(post, RSTART+RLENGTH)
                             }
                             if (post) {
-                                # code = system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\" \\\"" post "\\\"\" 2>/dev/null")
                                 code = system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\" \\\"" post "\\\"\"")
                             }
                             else {
-                                # code = system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\"\" 2>/dev/null")
                                 code = system("cd \"" dir "\" && eval \"" command " \\\"" selected[sel] "\\\"\"")
                             }
                         }
@@ -915,7 +949,12 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                    bmsg = disp[Ncursor] " selected"
                }
                else {
-                   for (idx in selorder) { if (selorder[idx] == dir SUBSEP Ncursor) { delete selorder[idx]; break } }
+                   for (idx in selorder) {
+                       if (selorder[idx] == dir SUBSEP Ncursor) {
+                           delete selorder[idx];
+                           break
+                       }
+                   }
                    delete selected[dir,Ncursor];
                    delete seldisp[dir,Ncursor];
                    delete selpage[dir,Ncursor];
@@ -1053,7 +1092,6 @@ function draw_preview(item) {
                     CUP(top + i - 1, border + 1)
                     code = gsub(/\000/, "", prev[i])
                     if (code > 0) {
-                        # printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m", "binary" >> "/dev/stderr"
                         printf "%s%s%s%s", a_reverse, f_white, "binary", a_reset >> "/dev/stderr"
                         break
                     }
