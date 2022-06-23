@@ -669,8 +669,8 @@ function cmd_mode(list, answer) {
         else {
             status = sprintf("%s%s%s", a_clean, cmd_trigger, substr(reply, b1, bb))
         }
-        CUP(top - 1, 1)
-        printf(cc "   " curloc) >> "/dev/stderr"
+        # CUP(top - 1, 1)
+        # printf(cc "   " curloc) >> "/dev/stderr"
         CUP(dim[1], 1)
         printf(status) >> "/dev/stderr"
         if (cc < 0) { CUP(dim[1], curloc + 1) } # adjust cursor
