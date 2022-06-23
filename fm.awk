@@ -162,17 +162,17 @@ function main() {
         response = result[1]
         bmsg = result[2]
 
-        #######################
-        #  Matching: Actions  #
-        #######################
+        # ------------------ #
+        # Matching: Actions  #
+        # ------------------ #
 
         if (bmsg == "Actions") {
             if (response == "History") { hist_act(); sind = 0; response = result[1]; bmsg = "";}
         }
 
-        ########################
-        #  Matching: Browsing  #
-        ########################
+        # ------------------- #
+        # Matching: Browsing  #
+        # ------------------- #
 
         gsub(/\033\[[0-9][0-9]m|\033\[[0-9]m|\033\[m/, "", response)
 
@@ -206,9 +206,10 @@ function main() {
             continue
         }
 
-        finale()
-        system("cd \"" dir "\" && " OPENER " \"" dir response "\"")
-        init()
+        # finale()
+        # system("cd \"" dir "\" && " OPENER " \"" dir response "\"")
+        # init()
+        system("cd \"" dir "\" && " OPENER " \"" dir response "\" &")
         openind = 1; old_dir = ""; parent = "";
 
     } while (1)
@@ -812,7 +813,6 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                     gsub(/["]/, "\\\\&", command) # escape special char
                     finale()
                     if (isEmpty(selected)) {
-                        # code = system("cd \"" dir "\" && eval \"" command "\" 2>/dev/null")
                         code = system("cd \"" dir "\" && eval \"" command "\"")
                     }
                     else {
@@ -1011,9 +1011,10 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
            }
 
            if (answer == "s") {
-               # for (sel in selected) {
-               #     selcontent = selcontent "\n" selected[sel]
-               # }
+               # -------------------------------------------------- #
+               # use maxidx to get maximum index for selorder       #
+               # and loop based on index to ensure looping in order #
+               # -------------------------------------------------- #
                idx = maxidx(selorder)
                for (j = 1; j <= idx; j++) {
                    if (selorder[j] == "") continue
