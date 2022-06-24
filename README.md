@@ -45,18 +45,18 @@ PREVIEW:
 	> - more directory ratio      < - less directory ratio
 
 MISC:
-	r - refresh                   a - actions
+	r - refresh                   q - quit
 	- - previous directory        ! - spawn shell
 	. - toggle hidden             ? - show keybinds
-```
+	o - local history             O - all history
 
+```
 ## Actions
 
 - [x] Bulk selection
 - [x] Bulk selection all
 - [x] Directory / File preview
-- Actions:
-    - History
+- [x] Command line mode
 
 Try to use those file manipulation function with cmd mode
 
@@ -95,6 +95,7 @@ edit `fm.awk`, modify the first configuration section:
 
 ## cmd mode
 
+- all auto completed command can be edited using left/right arrow and backspace.
 - `:cd /path/to/destination`
     - can be relative: `:cd ../../` goes to parents two tiers
 - `:cmd ` on each selected item.
@@ -127,4 +128,4 @@ edit `fm.awk`, modify the first configuration section:
 - [x] Able to redraw by `SIGWINCH`.
 - [x] Tab completion on path
 - [ ] Make cmd bottom line can be scrollable horizontally even when the string is over the dimension
-- [ ] Eliminate action menu by implementing all of those in cmd mode
+- [x] Eliminate action menu by implementing all of those in cmd mode

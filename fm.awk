@@ -2,9 +2,9 @@
 
 BEGIN {
 
-    ###################
-    #  Configuration  #
-    ###################
+    # -------------- #
+    # Configuration  #
+    # -------------- #
 
     OPENER = ( ENVIRON["FMAWK_OPENER"] == "" ? ( ENVIRON["OSTYPE"] ~ /darwin.*/ ? "open" : "xdg-open" ) : ENVIRON["FMAWK_OPENER"] )
     LASTPATH = ( ENVIRON["LASTPATH"] == "" ? ( ENVIRON["HOME"] "/.cache/lastpath" ) : ENVIRON["LASTPATH"] )
@@ -17,11 +17,12 @@ BEGIN {
     HIDDEN = 0
     RATIO = 0.35
     HIST_MAX = 5000
+    LOCALHIS = ""
     SUBSEP = ","
 
-    ####################
-    #  Initialization  #
-    ####################
+    # --------------- #
+    # Initialization  #
+    # --------------- #
 
     # Credit: https://unix.stackexchange.com/questions/224969/current-date-in-awk/225463#225463
     srand(); old_time = srand();
@@ -71,16 +72,9 @@ BEGIN {
     f_cyan = "\033\13336m"
     f_white = "\033\13337m"
 
-    #############
-    #  Actions  #
-    #############
-
-    # action = "History" RS \
-    #      "mv" RS \
-    #      "cp -R" RS \
-    #      "ln -sf" RS \
-    #      "rm -rf"
-    action = "History"
+    # ------------ #
+    # Help content #
+    # ------------ #
 
     help = "\n" \
        "NUMBERS: \n" \
@@ -114,10 +108,10 @@ BEGIN {
        "\t> - more directory ratio      < - less directory ratio \n"  \
        "\n" \
        "MISC: \n" \
-       "\tr - refresh                   a - actions \n" \
+       "\tr - refresh                   q - quit \n" \
        "\t- - previous directory        ! - spawn shell \n" \
        "\t. - toggle hidden             ? - show keybinds\n" \
-       "\tq - quit \n" \
+       "\to - local history             O - all history\n" \
 
     main();
 }
@@ -142,9 +136,7 @@ function main() {
         dim_setup()
 
         # adjust top msg if it is too long
-        if (length(dir) <= dim[2]){
-            tmsg = dir
-        }
+        if (length(dir) <= dim[2]){ tmsg = dir }
         else {
             tmsg = dir
             Ntmsg = split(tmsg, tmsgarr, "/")
@@ -162,14 +154,6 @@ function main() {
         response = result[1]
         bmsg = result[2]
 
-        # ------------------ #
-        # Matching: Actions  #
-        # ------------------ #
-
-        if (bmsg == "Actions") {
-            if (response == "History") { hist_act(); sind = 0; response = result[1]; bmsg = "";}
-        }
-
         # ------------------- #
         # Matching: Browsing  #
         # ------------------- #
@@ -179,13 +163,11 @@ function main() {
         if (response == "../") {
             parent = ( dir == "/" ? "/" : dir )
             old_dir = parent
-            if (hist != 1) {
-                gsub(/[^\/]*\/?$/, "", dir)
-                gsub(dir, "", parent)
-            }
-            # empty_selected()
+            gsub(/[^\/]*\/?$/, "", dir)
+            gsub(dir, "", parent)
             dir = ( dir == "" ? "/" : dir ); hist = 0; sind = 0; openind = 0;
             printf("%s\n", dir) >> HISTORY; close(HISTORY)
+            LOCALHIS = LOCALHIS "\n" dir
             continue
         }
 
@@ -202,6 +184,7 @@ function main() {
             old_dir = dir
             dir = ( hist == 1 ? response : dir response )
             printf("%s\n", dir) >> HISTORY; close(HISTORY)
+            LOCALHIS = LOCALHIS "\n" dir
             cursor = 1; curpage = 1; hist = 0; sind = 0; openind = 0;
             continue
         }
@@ -216,16 +199,21 @@ function main() {
 
 }
 
-function hist_act() {
+function hist_show() {
     list = ""
-    getline hisfile < HISTORY; close(HISTORY);
     N = split(hisfile, hisarr, "\n")
-    # for (i = N; i in hisarr; i--) {
     for (i = N; i >= 1; i--) {
         list = list "\n" hisarr[i]
     }
-    list = substr(list, 3)
-    list = list "\n../"; delim = "\n"; num = 1; tmsg = "Choose history: "; bmsg = "Action: " response; hist = 1;
+    if (answer == "o") {
+        list = substr(list, 2); list = substr(list, 1, length(list) - 1)
+        bmsg = "Action: Local History";
+    }
+    else if (answer == "O") {
+        list = substr(list, 3)
+        bmsg = "Action: All History";
+    }
+    delim = "\n"; num = 1; tmsg = "Choose history: "; hist = 1;
     menu_TUI(list, delim, num, tmsg, bmsg)
 }
 
@@ -311,9 +299,9 @@ function len(arr,   i) { for (idx in arr) { ++i }; return i }
 
 function maxidx(arr,    idx) { for (idx in selorder) { pidx = (pidx <= idx ? idx : pidx ) }; return pidx }
 
-##################
-#  Start of TUI  #
-##################
+# ------------- #
+# Start of TUI  #
+# ------------- #
 
 function finale() {
     clean_preview()
@@ -442,7 +430,6 @@ function key_collect(list, pagerind) {
         }
 
         gsub(/[\\^\[\]]/, "\\\\&", ans) # escape special char
-        # if (ans ~ /.*WINCH/ && pagerind == 0) { # trap SIGWINCH
         if (ans ~ /.*WINCH/) { # trap SIGWINCH
             cursor = 1; curpage = 1;
             if (pagerind == 0) {
@@ -684,8 +671,7 @@ function cmd_mode(list, answer) {
         else {
             status = sprintf("%s%s%s", a_clean, cmd_trigger, substr(reply, b1, bb))
         }
-        # CUP(top - 1, 1)
-        # printf(cc "   " curloc) >> "/dev/stderr"
+
         CUP(dim[1], 1)
         printf(status) >> "/dev/stderr"
         if (cc < 0) { CUP(dim[1], curloc + 1) } # adjust cursor
@@ -710,7 +696,6 @@ function redraw(tmsg, bmsg) {
     CUP(top - 2, 1); print tmsg >> "/dev/stderr"
     CUP(dim[1] - 2, 1); print bmsg >> "/dev/stderr"
     CUP(dim[1], 1)
-    # printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: ", Narr, curpage, page >> "/dev/stderr"
     printf "%sChoose [%s1-%d%s], current page num is %s%d%s, total page num is %s%d%s: ", a_clean, a_bold, Narr, a_reset, a_bold, curpage, a_reset, a_bold, page, a_reset >> "/dev/stderr"
     if (bmsg !~ /Action.*|Selecting\.\.\./ && ! isEmpty(selected)) draw_selected()
     if (bmsg !~ /Action.*|Selecting\.\.\./ && PREVIEW == 1) draw_preview(disp[Ncursor])
@@ -734,15 +719,13 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
 
             answer = key_collect(list, pagerind)
 
-            #######################################
-            #  Key: entry choosing and searching  #
-            #######################################
+            # ---------------------------------- #
+            # Key: entry choosing and searching  #
+            # ---------------------------------- #
 
             if ( answer ~ /^[[:digit:]]$/ || answer == "/" || answer == ":" ) {
                 CUP(dim[1], 1)
                 if (answer ~ /^[[:digit:]]$/) {
-                    # printf "Choose [\033\1331m1-%d\033\133m], current page num is \033\133;1m%d\033\133m, total page num is \033\133;1m%d\033\133m: %s", Narr, curpage, page, answer >> "/dev/stderr"
-
                     printf "%sChoose [%s1-%d%s], current page num is %s%d%s, total page num is %s%d%s: %s", a_clean, a_bold, Narr, a_reset, a_bold, curpage, a_reset, a_bold, page, a_reset, answer >> "/dev/stderr"
                 }
                 else {
@@ -776,7 +759,6 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                     tmplist = gen_content(dir, HIDDEN)
                     if (tmplist == "empty") {
                         dir = old_dir
-                        # bmsg = sprintf("\033\13338;5;15m\033\13348;5;9m%s\033\133m", "Error: Path Not Exist")
                         bmsg = sprintf("%s%s%s%s", b_red, f_white, "Error: Path Not Exist", a_reset)
                     }
                     else {
@@ -890,16 +872,15 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                 break
             }
 
-
-            ########################
-            #  Key: Total Redraw   #
-            ########################
+            # ------------------- #
+            # Key: Total Redraw   #
+            # ------------------- #
 
             if ( answer == "v" ) { PREVIEW = (PREVIEW == 1 ? 0 : 1); break }
             if ( answer == ">" ) { RATIO = (RATIO > 0.8 ? RATIO : RATIO + 0.05); break }
             if ( answer == "<" ) { RATIO = (RATIO < 0.2 ? RATIO : RATIO - 0.05); break }
             if ( answer == "r" || answer == "." ||
-               ( answer == "h" && ( bmsg == "Actions" || sind == 1 ) ) ||
+               ( answer == "h" && ( bmsg ~ /Action.*/ || sind == 1 ) ) ||
                ( answer ~ /^[[:digit:]]$/ && (+answer > +Narr || +answer < 1 ) ) ) {
                if (answer == ".") { HIDDEN = (HIDDEN == 1 ? 0 : 1); }
                list = gen_content(dir, HIDDEN)
@@ -909,13 +890,21 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                cursor = 1; curpage = (+curpage > +page ? page : curpage);
                break
            }
-           if ( answer == "\n" || answer == "l" || answer ~ /\[C/ ) { answer = Ncursor; break }
-           if ( answer == "a" ) {
-               menu_TUI_page(action, RS)
-               tmsg = "Choose an action"; bmsg = "Actions"
-               cursor = 1; curpage = 1;
+           if ( answer == "\n" || answer == "l" || answer ~ /\[C/ ) {
+               answer = Ncursor;
+               if (hist == 1) bmsg = ""
                break
            }
+
+           if ( answer == "o" || answer == "O" ) {
+               # o: local hist; O: all hist
+               if (answer == "o") { hisfile = LOCALHIS }
+               else { getline hisfile < HISTORY; close(HISTORY); }
+               if (hisfile == "") { bmsg = "No history to show"; break; }
+               hist_show()
+               break
+           }
+
            if ( answer ~ /q|\003/ ) exit
            if ( (answer == "h" || answer ~ /\[D/) && dir != "/" ) { answer = "../"; disp[answer] = "../"; bmsg = ""; break }
            if ( (answer == "h" || answer ~ /\[D/) && dir = "/" ) continue
@@ -930,9 +919,9 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
            if ( (answer == "G" || answer ~ /\[F/) && ( curpage != page || cursor != Narr - dispnum*(curpage-1) ) ) { curpage = page; cursor = Narr - dispnum*(curpage-1); break }
            if ( (answer == "G" || answer ~ /\[F/) && curpage == page && cursor = Narr - dispnum*(curpage-1) ) continue
 
-            #########################
-            #  Key: Partial Redraw  #
-            #########################
+           # -------------------- #
+           # Key: Partial Redraw  #
+           # -------------------- #
 
            if ( (answer == "j" || answer ~ /\[B/) && +cursor <= +dispnum ) { oldCursor = cursor; cursor++; }
            if ( (answer == "j" || answer ~ /\[B/) && +cursor > +dispnum && +curpage < +page && +page > 1 ) { cursor = 1; curpage++; break }
@@ -953,9 +942,9 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
            if ( answer == "M" ) { oldCursor = cursor; cursor = ( +curpage == +page ? int((Narr - dispnum*(curpage-1))*0.5) : int(dispnum*0.5) ); }
            if ( answer == "L" ) { oldCursor = cursor; cursor = ( +curpage == +page ? Narr - dispnum*(curpage-1) : dispnum ); }
 
-            ####################
-            #  Key: Selection  #
-            ####################
+           # --------------- #
+           # Key: Selection  #
+           # --------------- #
 
            if ( answer == " " ) {
                if (selected[dir,Ncursor] == "") {
@@ -1023,36 +1012,36 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                pager("Selected item: \n" selcontent); selcontent = ""; break;
            }
 
-            ####################################################################
-            #  Partial redraw: tmsg, bmsg, old entry, new entry, and selected  #
-            ####################################################################
+           # --------------------------------------------------------------- #
+           # Partial redraw: tmsg, bmsg, old entry, new entry, and selected  #
+           # --------------------------------------------------------------- #
 
-            Ncursor = cursor+dispnum*(curpage-1); oldNcursor = oldCursor+dispnum*(curpage-1);
-            if (Ncursor > Narr) { Ncursor = Narr; cursor = Narr - dispnum*(curpage-1); continue }
-            if (Ncursor < 1) { Ncursor = 1; cursor = 1; continue }
+           Ncursor = cursor+dispnum*(curpage-1); oldNcursor = oldCursor+dispnum*(curpage-1);
+           if (Ncursor > Narr) { Ncursor = Narr; cursor = Narr - dispnum*(curpage-1); continue }
+           if (Ncursor < 1) { Ncursor = 1; cursor = 1; continue }
 
-            CUP(dim[1] - 2, 1); # bmsg
-            printf a_clean >> "/dev/stderr" # clear line
-            print bmsg >> "/dev/stderr"
+           CUP(dim[1] - 2, 1); # bmsg
+           printf a_clean >> "/dev/stderr" # clear line
+           print bmsg >> "/dev/stderr"
 
-            CUP(top + oldCursor*num - num, 1); # old entry
-            for (i = 1; i <= num; i++) {
-                printf a_clean >> "/dev/stderr" # clear line
-                CUP(top + oldCursor*num - num + i, 1)
-            }
-            CUP(top + oldCursor*num - num, 1);
-            printf "%s", oldNcursor ". " disp[oldNcursor] >> "/dev/stderr"
+           CUP(top + oldCursor*num - num, 1); # old entry
+           for (i = 1; i <= num; i++) {
+               printf a_clean >> "/dev/stderr" # clear line
+               CUP(top + oldCursor*num - num + i, 1)
+           }
+           CUP(top + oldCursor*num - num, 1);
+           printf "%s", oldNcursor ". " disp[oldNcursor] >> "/dev/stderr"
 
-            CUP(top + cursor*num - num, 1); # new entry
-            for (i = 1; i <= num; i++) {
-            printf a_clean >> "/dev/stderr" # clear line
-            CUP(top + cursor*num - num + i, 1)
-            }
-            CUP(top + cursor*num - num, 1);
-            printf "%s%s%s%s", Ncursor ". ", a_reverse, disp[Ncursor], a_reset >> "/dev/stderr"
+           CUP(top + cursor*num - num, 1); # new entry
+           for (i = 1; i <= num; i++) {
+           printf a_clean >> "/dev/stderr" # clear line
+           CUP(top + cursor*num - num + i, 1)
+           }
+           CUP(top + cursor*num - num, 1);
+           printf "%s%s%s%s", Ncursor ". ", a_reverse, disp[Ncursor], a_reset >> "/dev/stderr"
 
-            if (bmsg !~ /Action.*|Selecting\.\.\./ && ! isEmpty(selected)) draw_selected()
-            if (bmsg !~ /Action.*|Selecting\.\.\./ && PREVIEW == 1) draw_preview(disp[Ncursor])
+           if (bmsg !~ /Action.*|Selecting\.\.\./ && ! isEmpty(selected)) draw_selected()
+           if (bmsg !~ /Action.*|Selecting\.\.\./ && PREVIEW == 1) draw_preview(disp[Ncursor])
         }
 
     }
@@ -1080,9 +1069,9 @@ function pager(msg) { # pager to print out stuff and navigate
     pagerind = 0;
 }
 
-######################
-#  Start of Preview  #
-######################
+# ----------------- #
+# Start of Preview  #
+# ----------------- #
 
 function draw_preview(item) {
 
