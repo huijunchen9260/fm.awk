@@ -30,6 +30,7 @@ BEGIN {
     RS = "\a"
     dir = ( ENVIRON["PWD"] == "/" ? "/" : ENVIRON["PWD"] "/" )
     cursor = 1; curpage = 1;
+    hist = 0
 
     # get current keyboard setting
     cmd = "xset q"
@@ -98,6 +99,8 @@ BEGIN {
        "\t        tab completion on path: start with ' /', use tab to complete on that path \n" \
        "\t        tab completion on cmd: completion based on command history \n" \
        "\t            ><: enter selecting mode for directory (choose ./ to confirm destination)\n" \
+       "\t←/→ - move left/right\n" \
+       "\t⌫ - backspace on one character\n" \
        "\n" \
        "SELECTION: \n" \
        "\t␣ - bulk (de-)selection       S - bulk (de-)selection all  \n"  \
@@ -111,7 +114,7 @@ BEGIN {
        "\tr - refresh                   q - quit \n" \
        "\t- - previous directory        ! - spawn shell \n" \
        "\t. - toggle hidden             ? - show keybinds\n" \
-       "\to - local history             O - all history\n" \
+       "\to - all history               O - local history\n" \
 
     main();
 }
@@ -150,6 +153,7 @@ function main() {
                 }
             }
         }
+
         menu_TUI(list, delim, num, tmsg, bmsg)
         response = result[1]
         bmsg = result[2]
@@ -205,11 +209,11 @@ function hist_show() {
     for (i = N; i >= 1; i--) {
         list = list "\n" hisarr[i]
     }
-    if (answer == "o") {
+    if (answer == "O") {
         list = substr(list, 2); list = substr(list, 1, length(list) - 1)
         bmsg = "Action: Local History";
     }
-    else if (answer == "O") {
+    else if (answer == "o") {
         list = substr(list, 3)
         bmsg = "Action: All History";
     }
@@ -888,6 +892,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                menu_TUI_page(list, delim)
                empty_selected()
                cursor = 1; curpage = (+curpage > +page ? page : curpage);
+               hist = 0
                break
            }
            if ( answer == "\n" || answer == "l" || answer ~ /\[C/ ) {
@@ -896,9 +901,9 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                break
            }
 
-           if ( answer == "o" || answer == "O" ) {
-               # o: local hist; O: all hist
-               if (answer == "o") { hisfile = LOCALHIS }
+           if ( (answer == "o" || answer == "O") && hist == 0 ) {
+               # O: local hist; o: all hist
+               if (answer == "O") { hisfile = LOCALHIS }
                else { getline hisfile < HISTORY; close(HISTORY); }
                if (hisfile == "") { bmsg = "No history to show"; break; }
                hist_show()
@@ -946,7 +951,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
            # Key: Selection  #
            # --------------- #
 
-           if ( answer == " " ) {
+           if ( answer == " " && hist != 1 ) {
                if (selected[dir,Ncursor] == "") {
                    TMP = disp[Ncursor];
                    gsub(/\033\[[0-9][0-9]m|\033\[[0-9]m|\033\[m/, "", TMP)
@@ -976,7 +981,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                break
            }
 
-           if (answer == "S") {
+           if (answer == "S" && hist != 1) {
                if (isEmpty(selected)) {
                    selp = 0
                    for (entry = 1; entry in disp; entry++) {
@@ -999,7 +1004,7 @@ function menu_TUI(list, delim, num, tmsg, bmsg) {
                break
            }
 
-           if (answer == "s") {
+           if (answer == "s" && hist != 1) {
                # -------------------------------------------------- #
                # use maxidx to get maximum index for selorder       #
                # and loop based on index to ensure looping in order #
@@ -1065,6 +1070,22 @@ function pager(msg) { # pager to print out stuff and navigate
         if (key == "\003" || key == "\033" || key == "q" || key == "h") break
         if ((key == "j" || key ~ /\[B/) && i < Nmsgarr) { printf "\033\133%d;H\n", Npager >> "/dev/stderr"; printf msgarr[i++] >> "/dev/stderr" }
         if ((key == "k" || key ~ /\[A/) && i > dim[1] + 1) { printf "\033\133H\033\133L" >> "/dev/stderr"; i--; printf msgarr[i-dim[1]] >> "/dev/stderr" }
+        if (key == "g" || key ~ /\[H/) {
+            printf "\033\1332J\033\133H" >> "/dev/stderr" # clear screen
+            for (i = 1; i <= Npager; i++) {
+                CUP(i, 1)
+                printf "%s", msgarr[i] >> "/dev/stderr"
+            }
+        }
+
+        if (key == "G" || key ~ /\[F/) {
+            printf "\033\1332J\033\133H" >> "/dev/stderr" # clear screen
+            for (i = 1; i <= Npager; i++) {
+                CUP(i, 1)
+                printf "%s", msgarr[Nmsgarr - Npager - 1 + i] >> "/dev/stderr"
+            }
+            i = Nmsgarr
+        }
     }
     pagerind = 0;
 }
