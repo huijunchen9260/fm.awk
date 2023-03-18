@@ -23,71 +23,112 @@ _preview_print () {
     awk -F"\n" -v b="$b" -v e="$e" -v top="$top" '{i++; gsub(/\000\r/, "", $1); printf("\033[%s;%sH%s\n",top+i-1,b,$1); if (i >= e) exit }'
 }
 
+_check_dep () {
+    ! command -v "$1" 1>/dev/null 2>&1 &&
+        printf "\033\13338;5;0m\033\13348;5;15m%s\033\133m" "ERROR: Dependency $1 not met." |
+        _preview_print "$b" "$vRange" "$top" "$@"
+}
+
 _fmawk_preview () {
 	[ -f "$cache.jpg" ] && rm "$cache.jpg" > /dev/null #If there's a remaining preview, remove it first (could prevent issues)
 	[ -p "$FIFO_UEBERZUG" ] && printf '{"action":"remove","identifier":"PREVIEW"}\n' > "$FIFO_UEBERZUG" #Remove Ueberzug preview if applicable.
 	case "$path" in
 		*.mp4|*.avi|*.wmv|*.3gp|*.ogv|*.mkv|*.mpg|*.mpeg|*.vob|*.mov|*.webm|*.ts|*.mts) #Video file preview.
-			ffmpegthumbnailer -i "$path" -o "$cache.jpg" -c jpg -s0 -q5 2>/dev/null
+            prog="ffmpegthumbnailer"
+            _check_dep "$prog" ||
+                ffmpegthumbnailer -i "$path" -o "$cache.jpg" -c jpg -s0 -q5 2>/dev/null
 			fmawk_dest="$cache.jpg"
             ;;
 		*.pdf) #PDF preview.
-			pdftoppm -jpeg -f 1 -singlefile "$path" "$cache" 2>/dev/null
+            prog="pdftoppm"
+            _check_dep "$prog" ||
+                pdftoppm -jpeg -f 1 -singlefile "$path" "$cache" 2>/dev/null
 			fmawk_dest="$cache.jpg"
             ;;
         *.epub)
-            epub-thumbnailer "$path" "$cache" 1024
+            prog="epub-thumbnailer"
+            _check_dep "$prog" ||
+                epub-thumbnailer "$path" "$cache" 1024
 			fmawk_dest="$cache.jpg"
 		;;
 		*.bmp|*.jpg|*.jpeg|*.png|*.webp|*.gif|*.xmp|*.JPG) #Image preview
 			fmawk_dest="$path"
             ;;
         *.tgz|*.tar.gz)
-            tar tzf "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            prog="tar"
+            _check_dep "$prog" ||
+                tar tzf "$path" | _preview_print "$b" "$vRange" "$top" "$@"
             ;;
         *.tar.bz2|*.tbz2)
-            tar tjf "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            prog="tar"
+            _check_dep "$prog" ||
+                tar tjf "$path" | _preview_print "$b" "$vRange" "$top" "$@"
             ;;
         *.tar.txz|*.txz)
-            xz --list "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            prog="xz"
+            _check_dep "$prog" ||
+                xz --list "$path" | _preview_print "$b" "$vRange" "$top" "$@"
             ;;
         *.tar)
-            tar tf "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            prog="tar"
+            _check_dep "$prog" ||
+                tar tf "$path" | _preview_print "$b" "$vRange" "$top" "$@"
             ;;
         *.gz)
-            gunzip -l "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            prog="gunzip"
+            _check_dep "$prog" ||
+                gunzip -l "$path" | _preview_print "$b" "$vRange" "$top" "$@"
             ;;
         *.zip|*.jar|*.war|*.ear|*.oxt)
+            prog="unzip"
+            _check_dep "$prog" ||
             unzip -l "$path" | _preview_print "$b" "$vRange" "$top" "$@"
             ;;
         *.rar)
+            prog="unrar"
+            _check_dep "$prog" ||
             unrar l "$path" | _preview_print "$b" "$vRange" "$top" "$@"
             ;;
         *.7z)
-            7z l "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            prog="7z"
+            _check_dep "$prog" ||
+                7z l "$path" | _preview_print "$b" "$vRange" "$top" "$@"
             ;;
         *.[1-8])
             man "$path" | col -b | _preview_print "$b" "$vRange" "$top" "$@"
             ;;
         *.iso)
-            iso-info --no-header -l "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            prog="iso-info"
+            _check_dep "$prog" ||
+                iso-info --no-header -l "$path" | _preview_print "$b" "$vRange" "$top" "$@"
             ;;
         *.odt|*.ods|*.odp|*.sxw)
-            odt2txt "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            prog="odt2txt"
+            _check_dep "$prog" ||
+                odt2txt "$path" | _preview_print "$b" "$vRange" "$top" "$@"
             ;;
         *.doc)
-            catdoc "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            prog="catdoc"
+            _check_dep "$prog" ||
+                catdoc "$path" | _preview_print "$b" "$vRange" "$top" "$@"
             ;;
         *.docx)
-            docx2txt "$path" - | _preview_print "$b" "$vRange" "$top" "$@"
+            prog="docx2txt"
+            _check_dep "$prog" ||
+                docx2txt "$path" - | _preview_print "$b" "$vRange" "$top" "$@"
             ;;
         *.xls|*.xlsx)
-            ssconvert --export-type=Gnumeric_stf:stf_csv "$path" "fd://1" | batorcat --language=csv | _preview_print "$b" "$vRange" "$top" "$@"
+            prog="ssconvert"
+            _check_dep "$prog" ||
+                ssconvert --export-type=Gnumeric_stf:stf_csv "$path" "fd://1" | batorcat --language=csv | _preview_print "$b" "$vRange" "$top" "$@"
             ;;
         *.wav|*.mp3|*.flac|*.m4a|*.wma|*.ape|*.ac3|*.og[agx]|*.spx|*.opus|*.as[fx]|*.mka)
-            exiftool "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+            prog="exiftool"
+            _check_dep "$prog" ||
+                exiftool "$path" | _preview_print "$b" "$vRange" "$top" "$@"
             ;;
-        *) batorcat "$path" | _preview_print "$b" "$vRange" "$top" "$@"
+        *)
+            batorcat "$path" | _preview_print "$b" "$vRange" "$top" "$@"
             ;;
 	esac
 	if [ -f "$fmawk_dest" ]; then #Confirm destination file.

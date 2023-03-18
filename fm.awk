@@ -1131,6 +1131,7 @@ function draw_preview(item) {
             }
         }
         else {
+            # the FMAWK_PREVIEWER must be designed to check dependency
             system(FMAWK_PREVIEWER " \"" path "\" \"" CACHE "\" \"" border+1 "\" \"" ((end - top)/num) "\" \"" top "\" \"" dim[2]-border-1 "\"")
         }
 
