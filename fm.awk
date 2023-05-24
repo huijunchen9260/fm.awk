@@ -32,21 +32,22 @@ BEGIN {
     cursor = 1; curpage = 1;
     hist = 0
 
-    # get current keyboard setting
-    cmd = "xset q"
-    cmd | getline xsetkey
-    close(cmd)
-    split(xsetkey, keyset, " ")
-    for (idx in keyset){
-        if (keyset[idx-3] " " keyset[idx-2] " " keyset[idx-1] == "auto repeat delay:"){
-            # auto repeat delay in milliseconds; change to seconds
-            delaysec = keyset[idx]/1000
-        }
-        if (keyset[idx-2] " " keyset[idx-1] == "repeat rate:"){
-            # repeat rate in rep per seconds; change to seconds per rep
-            repsec = 1/keyset[idx]
-        }
-    }
+
+    # # get current keyboard setting
+    # cmd = "xset q"
+    # cmd | getline xsetkey
+    # close(cmd)
+    # split(xsetkey, keyset, " ")
+    # for (idx in keyset){
+    #     if (keyset[idx-3] " " keyset[idx-2] " " keyset[idx-1] == "auto repeat delay:"){
+    #         # auto repeat delay in milliseconds; change to seconds
+    #         delaysec = keyset[idx]/1000
+    #     }
+    #     if (keyset[idx-2] " " keyset[idx-1] == "repeat rate:"){
+    #         # repeat rate in rep per seconds; change to seconds per rep
+    #         repsec = 1/keyset[idx]
+    #     }
+    # }
 
     # load alias
     cmd = "${SHELL:=/bin/sh} -c \". ~/.${SHELL##*/}rc && alias\""
@@ -193,10 +194,10 @@ function main() {
             continue
         }
 
-        # finale()
-        # system("cd \"" dir "\" && " OPENER " \"" dir response "\"")
-        # init()
-        system("cd \"" dir "\" && " OPENER " \"" dir response "\" &")
+        finale()
+        system("cd \"" dir "\" && " OPENER " \"" dir response "\"")
+        init()
+        # system("cd \"" dir "\" && " OPENER " \"" dir response "\" &")
         openind = 1; old_dir = ""; parent = "";
 
     } while (1)
